@@ -48,6 +48,7 @@ function colorPantalla(estado) {
     case 'trabajando': return '#3fbf6f';
     case 'pensando': return '#4aa8e0';
     case 'reparando': return '#e0a83a';
+    case 'limpiando': return '#a8e04a';
     case 'bloqueado': return '#c0453a';
     case 'holgazaneando': return '#8a8a5a';
     case 'quejandose': return '#c0773a';
@@ -56,7 +57,25 @@ function colorPantalla(estado) {
   }
 }
 
-const ENCENDIDA = ['trabajando', 'pensando', 'reparando', 'bloqueado', 'holgazaneando', 'quejandose', 'ayudando'];
+const ENCENDIDA = ['trabajando', 'pensando', 'reparando', 'limpiando', 'bloqueado', 'holgazaneando', 'quejandose', 'ayudando'];
+
+/**
+ * Que emoticono le sale por encima de la cabeza. Es lo que hace que se
+ * entienda de un vistazo como esta cada uno sin leer un solo numero.
+ */
+function emoteDe(agente) {
+  if (agente.dimitido) return null;
+  if (agente.ordenador && agente.ordenador.virus) return 'virus';
+  if (agente.estado === 'limpiando') return 'idea';
+  if (agente.estado === 'reparando') return 'idea';
+  if (agente.estado === 'descansando') return 'dormido';
+  if (agente.estado === 'quejandose') return 'enfadado';
+  if (agente.moral < 25) return 'enfadado';
+  if (agente.moral > 82) return 'amor';
+  if (agente.estado === 'motivado') return 'feliz';
+  if (agente.energia < 18) return 'triste';
+  return null;
+}
 
 /** Donde tiene que ponerse un empleado, en pixeles de mundo (a sus pies). */
 function destinoSitio(agente, agentes) {
@@ -209,13 +228,15 @@ export class Renderizador {
       const v = agente ? this._visualDe(agente) : null;
       const activo = agente && !agente.dimitido;
       const estadoPinta = activo ? (agente.pensando ? 'pensando' : agente.estado) : null;
+      const infectado = !!(activo && agente.ordenador && agente.ordenador.virus);
 
       capa.push({
         z: d.my * S.TAM + 15,
         f: () => S.dibujarMonitor(
           ctx, d.mx, d.my,
-          estadoPinta ? colorPantalla(estadoPinta) : '#14171d',
-          !!estadoPinta && ENCENDIDA.includes(estadoPinta) && !apagon
+          infectado ? '#8ae05a' : (estadoPinta ? colorPantalla(estadoPinta) : '#14171d'),
+          !!estadoPinta && ENCENDIDA.includes(estadoPinta) && !apagon,
+          infectado
         )
       });
 
@@ -252,6 +273,13 @@ export class Renderizador {
       if (agente.dimitido || !agente.bocadillo) continue;
       this._dibujarBocadillo(ctx, agente, this._visualDe(agente));
     }
+    // Los emoticonos van los ultimos, por encima de todo.
+    for (const agente of estado.agentes) {
+      const tipo = emoteDe(agente);
+      if (!tipo) continue;
+      const v = this._visualDe(agente);
+      S.dibujarEmote(ctx, v.x + 13, v.y - S.ALTO_PJ * 2 - 24, tipo, this.t);
+    }
   }
 
   _dibujarAgente(ctx, agente, v) {
@@ -259,10 +287,11 @@ export class Renderizador {
     if (!frames) return;
 
     let lienzo;
-    if (agente.estado === 'reparando') lienzo = frames.reparando[v.frame % 2];
+    if (agente.estado === 'reparando' || agente.estado === 'limpiando') lienzo = frames.reparando[v.frame % 2];
     else if (v.caminando) lienzo = frames.caminar[v.frame % 4];
     else if (v.sentado) lienzo = frames.sentado[Math.floor(this.t / 380) % 2];
     else if (agente.estado === 'sin_luz') lienzo = frames.quieto;
+    else if (agente.ordenador && agente.ordenador.virus) lienzo = frames.asustado;
     else if (agente.moral < 25) lienzo = frames.enfadado;
     else if (agente.moral > 80) lienzo = frames.feliz;
     else lienzo = frames.quieto;

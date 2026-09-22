@@ -13,12 +13,14 @@
 
 import {
   ACCIONES,
+  NIVELES_HARDWARE,
   aplicarAccion,
   interpretarDecision,
   recordar,
   crearEmpleado,
   limitar
 } from './reglas.js';
+import { RECLUTAS } from './reclutas.js';
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -75,6 +77,7 @@ class Mundo {
       ingresoHoraMedio: null,
       costeUltimoDia: 0,
       tieneCafetera: false,
+      tieneAntivirus: false,
       apagon: false,
       historial: []
     };
@@ -130,9 +133,39 @@ class Mundo {
     }
 
     this._avanzarAgentes();
+    this._propagarVirus();
     this._economia();
     this._bombear();
     this._emitir();
+  }
+
+  /**
+   * Los virus se contagian solos entre ordenadores de la misma oficina.
+   * Un antivirus instalado frena muchisimo el contagio, y un ordenador con
+   * buen hardware resiste mejor.
+   */
+  _propagarVirus() {
+    const infectados = this.agentes.filter((a) => !a.dimitido && a.ordenador.virus);
+    if (!infectados.length) return;
+
+    const sanos = this.agentes.filter((a) => !a.dimitido && !a.ordenador.virus && !a.ordenador.roto);
+    if (!sanos.length) return;
+
+    const antivirus = this.empresa.tieneAntivirus ? 0.3 : 1;
+    const probabilidad = 0.014 * infectados.length * antivirus;
+    if (Math.random() > probabilidad) return;
+
+    // Cuanta mejor hardware, mas dificil que entre.
+    sanos.sort((a, b) => (a.ordenador.nivel || 1) - (b.ordenador.nivel || 1));
+    const victima = sanos[0];
+
+    victima.ordenador.virus = true;
+    victima.ordenador.virusDesde = this.tick;
+    victima.moral = limitar(victima.moral - 7, 0, 100);
+
+    const texto = `El virus se ha pasado al ordenador de ${victima.nombre}.`;
+    this.registrar('virus', texto);
+    this.encolarReflexion(victima.id, `Tu ordenador se ha infectado: le ha llegado el virus de un companero. ${texto}`);
   }
 
   get laboral() {
@@ -193,6 +226,33 @@ class Mundo {
         continue;
       }
 
+      // --- VIRUS -------------------------------------------------------
+      // Un ordenador con virus no se para: sigue encendido, pero arrastra
+      // todo. Si el empleado decide limpiarlo, va avanzando poco a poco.
+      if (a.ordenador.virus) {
+        a.moral = limitar(a.moral - 0.22, 0, 100);
+        a.energia = limitar(a.energia - 0.5, 0, 100);
+
+        if (a.limpiando && this.laboral) {
+          a.estado = 'limpiando';
+          a.progresoVirus = (a.progresoVirus || 0) + 11;
+          a.energia = limitar(a.energia - 2, 0, 100);
+          if (a.progresoVirus >= 100) {
+            a.ordenador.virus = false;
+            a.limpiando = false;
+            a.progresoVirus = 0;
+            a.estado = 'trabajando';
+            a.moral = limitar(a.moral + 9, 0, 100);
+            this.registrar('virus', `${a.nombre} ha limpiado el virus. Su ordenador vuelve a ir fino.`);
+            recordar(a, 'Limpie un virus de mi ordenador.', this.consumo.maxRecuerdos);
+          }
+          continue;
+        }
+      } else {
+        a.limpiando = false;
+        a.progresoVirus = 0;
+      }
+
       if (!this.laboral) {
         // Fuera de horario: descansan.
         a.estado = 'descansando';
@@ -215,7 +275,12 @@ class Mundo {
         a.sitio = 'escritorio';
       }
 
-      const rinde = (a.habilidad / 50) * (a.energia / 100) * (a.ordenador.salud / 100);
+      // Cuanto rinde: habilidad, energia, salud del ordenador, si tiene virus
+      // y el hardware que le haya instalado el jefe.
+      const factorVirus = a.ordenador.virus ? 0.45 : 1;
+      const factorHardware = (NIVELES_HARDWARE[(a.ordenador.nivel || 1) - 1] || { bonus: 1 }).bonus;
+      const rinde = (a.habilidad / 50) * (a.energia / 100) * (a.ordenador.salud / 100) * factorVirus * factorHardware;
+
       a.energia = limitar(a.energia - 1.4 + impulsoMoral * 0.5, 0, 100);
       a.habilidad = limitar(a.habilidad + 0.03 * (a.energia / 100), 0, 100);
       a.moral = limitar(a.moral - 0.05 - Math.max(0, 30 - a.energia) * 0.01, 0, 100);
@@ -700,7 +765,10 @@ class Mundo {
         }
 
         const yaEstan = new Set(vivos.map((a) => a.id));
-        const candidato = (this.cfg.candidatos || []).find((c) => !yaEstan.has(c.id));
+        // Los candidatos salen del config y ademas de reclutas.js, que es
+        // donde vive el corpus de voz de los fichajes nuevos.
+        const candidatos = [...(this.cfg.candidatos || []), ...(RECLUTAS.personas || [])];
+        const candidato = candidatos.find((c) => !yaEstan.has(c.id));
         if (!candidato) {
           return { ok: false, mensaje: 'No queda nadie en la lista de candidatos.' };
         }
@@ -723,6 +791,106 @@ class Mundo {
         this.registrar('dios', `${texto} Ya sois ${vivos.length + 1} en la oficina. (-${coste} EUR)`);
         this.encolarReflexionATodos(texto);
         return { ok: true, mensaje: `${texto} Le toca el escritorio ${indice + 1}.` };
+      }
+
+      case 'meter_virus': {
+        const a = busca(carga.agenteId);
+        if (!a) return { ok: false, mensaje: 'Ese empleado no existe.' };
+        if (a.ordenador.roto) return { ok: false, mensaje: `El ordenador de ${a.nombre} esta roto. Arreglalo antes de infectarlo.` };
+        if (a.ordenador.virus) return { ok: false, mensaje: `El ordenador de ${a.nombre} ya tiene un virus.` };
+
+        a.ordenador.virus = true;
+        a.ordenador.virusDesde = this.tick;
+        a.limpiando = false;
+        a.progresoVirus = 0;
+        a.moral = limitar(a.moral - 10, 0, 100);
+
+        const texto = `El jefe ha metido un virus en el ordenador de ${a.nombre}. La pantalla se ha llenado de ventanas raras.`;
+        this.registrar('dios', texto);
+        this.encolarReflexion(a.id, texto);
+        return { ok: true, mensaje: texto };
+      }
+
+      case 'antivirus': {
+        if (e.tieneAntivirus) return { ok: false, mensaje: 'La oficina ya tiene antivirus instalado.' };
+        const precio = 240;
+        if (e.dinero < precio) return { ok: false, mensaje: `El antivirus cuesta ${precio} EUR y no llega la caja.` };
+
+        e.dinero -= precio;
+        e.tieneAntivirus = true;
+
+        let limpios = 0;
+        for (const a of this.agentes) {
+          if (a.dimitido) continue;
+          if (a.ordenador.virus) {
+            a.ordenador.virus = false;
+            a.limpiando = false;
+            a.progresoVirus = 0;
+            a.moral = limitar(a.moral + 6, 0, 100);
+            limpios++;
+          }
+        }
+
+        const texto = `El jefe ha instalado un antivirus en toda la oficina.${limpios ? ` Ha limpiado ${limpios} ordenador${limpios > 1 ? 'es' : ''} de golpe.` : ' Ahora los virus se contagian mucho menos.'}`;
+        this.registrar('dios', `${texto} (-${precio} EUR)`);
+        this.encolarReflexionATodos(texto);
+        return { ok: true, mensaje: texto };
+      }
+
+      case 'instalar_hardware': {
+        const a = busca(carga.agenteId);
+        if (!a) return { ok: false, mensaje: 'Ese empleado no existe.' };
+
+        const nivel = a.ordenador.nivel || 1;
+        if (nivel >= NIVELES_HARDWARE.length) {
+          return { ok: false, mensaje: `El ordenador de ${a.nombre} ya es de lo mejorcito. No hay nada que ampliar.` };
+        }
+
+        const precio = nivel === 1 ? 380 : 850;
+        if (e.dinero < precio) {
+          return { ok: false, mensaje: `Ampliar el ordenador de ${a.nombre} cuesta ${precio} EUR y no llega la caja.` };
+        }
+
+        e.dinero -= precio;
+        a.ordenador.nivel = nivel + 1;
+        a.ordenador.salud = 100;
+        a.moral = limitar(a.moral + 9, 0, 100);
+        a.energia = limitar(a.energia + 4, 0, 100);
+
+        const nuevo = NIVELES_HARDWARE[nivel];
+        const texto = `El jefe le ha ampliado el ordenador a ${a.nombre}: mas RAM, disco rapido y grafica. Ahora es ${nuevo.nombre}.`;
+        this.registrar('dios', `${texto} (-${precio} EUR)`);
+        this.encolarReflexion(a.id, texto);
+        return { ok: true, mensaje: texto };
+      }
+
+      case 'arreglar_todo': {
+        const precio = 120;
+        const estropeados = this.agentes.filter((a) => !a.dimitido && (a.ordenador.roto || a.ordenador.virus));
+        if (!estropeados.length) {
+          return { ok: false, mensaje: 'Ahora mismo no hay ningun ordenador roto ni infectado.' };
+        }
+        if (e.dinero < precio) {
+          return { ok: false, mensaje: `Ponerlo todo a punto cuesta ${precio} EUR y no llega la caja.` };
+        }
+
+        e.dinero -= precio;
+        for (const a of estropeados) {
+          a.ordenador.roto = false;
+          a.ordenador.virus = false;
+          a.ordenador.salud = 100;
+          a.reparando = false;
+          a.limpiando = false;
+          a.progresoVirus = 0;
+          a.bloqueadoTicks = 0;
+          a.estado = 'trabajando';
+          a.moral = limitar(a.moral + 5, 0, 100);
+        }
+
+        const texto = `El jefe ha dejado como nuevos ${estropeados.length} ordenador${estropeados.length > 1 ? 'es' : ''}.`;
+        this.registrar('dios', `${texto} (-${precio} EUR)`);
+        this.encolarReflexionATodos(texto);
+        return { ok: true, mensaje: texto };
       }
 
       case 'mejorar_oficina': {

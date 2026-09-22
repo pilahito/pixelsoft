@@ -372,6 +372,7 @@ const NOMBRE_ESTADO = {
   trabajando: 'trabajando',
   pensando: 'pensando…',
   reparando: 'reparando el PC',
+  limpiando: 'quitando el virus',
   bloqueado: 'PC roto, parado',
   descansando: 'descansando',
   holgazaneando: 'holgazaneando',
@@ -382,6 +383,8 @@ const NOMBRE_ESTADO = {
   sin_luz: 'sin luz',
   dimitido: 'se marchó'
 };
+
+const NOMBRE_HARDWARE = ['básico', 'bueno', 'pro'];
 
 function tarjetaEmpleado(a) {
   const d = a.ultimaDecision;
@@ -416,6 +419,14 @@ function tarjetaEmpleado(a) {
     <div class="cuenta-fila" style="margin-bottom:7px">
       <span class="k">temperatura ${a.temperatura}</span>
       <span class="v">${escapar(a.modelo)}</span>
+    </div>
+    <div class="cuenta-fila" style="margin-bottom:7px">
+      <span class="k">PC ${NOMBRE_HARDWARE[(a.ordenador.nivel || 1) - 1]}</span>
+      <span class="v">
+        ${a.ordenador.roto ? '💥 roto' : ''}
+        ${a.ordenador.virus ? '🦠 con virus' : ''}
+        ${!a.ordenador.roto && !a.ordenador.virus ? '✅ sano' : ''}
+      </span>
     </div>
     ${a.peticionAumento ? '<div class="dicho" style="border-left-color:var(--ambar);color:#ffe2b0">Te ha pedido un aumento de sueldo.</div>' : ''}
     ${d && d.dialogo ? `<div class="dicho"><span class="rotulo">ÚLTIMA FRASE</span>${escapar(d.dialogo)}</div>` : ''}

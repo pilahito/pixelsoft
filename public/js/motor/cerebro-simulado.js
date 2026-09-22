@@ -18,6 +18,34 @@ import { aplicarAccion, ACCIONES } from './reglas.js';
 import { systemPrompt, promptReaccion, promptCharla } from './reglas.js';
 import { VOCES } from './voces.js';
 import { INTENCIONES, RESPUESTAS, COLETILLAS } from './charla.js';
+import { RECLUTAS } from './reclutas.js';
+import { EVENTOS_EXTRA } from './eventos-extra.js';
+
+/* ---------------------------------------------------- juntar el corpus */
+
+/**
+ * El corpus esta partido en varios ficheros para que se pueda ampliar sin
+ * tocar los demas: los 5 personajes de siempre en voces.js/charla.js, los 3
+ * fichajes nuevos en reclutas.js, y los eventos que se anadieron despues
+ * (virus, hardware) en eventos-extra.js. Aqui se junta todo.
+ */
+const VOCES_TODAS = { ...VOCES, ...RECLUTAS.voces };
+const RESPUESTAS_TODAS = { ...RESPUESTAS, ...RECLUTAS.respuestas };
+
+const COLETILLAS_TODAS = {};
+for (const estado of ['moralBaja', 'ordenadorRoto', 'precioCaro', 'sinEnergia']) {
+  COLETILLAS_TODAS[estado] = {
+    ...((COLETILLAS && COLETILLAS[estado]) || {}),
+    ...((RECLUTAS.coletillas && RECLUTAS.coletillas[estado]) || {})
+  };
+}
+
+/** Todas las frases de un personaje: los 8 eventos base mas los extra. */
+function vozCompleta(id) {
+  const base = VOCES_TODAS[id] || {};
+  const extra = EVENTOS_EXTRA[id] || {};
+  return { ...base, ...extra };
+}
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const azar = () => Math.random();
@@ -43,6 +71,9 @@ const VOCES_BASE = {
 export function clasificarSucesos(sucesos) {
   const texto = (Array.isArray(sucesos) ? sucesos.join(' ') : String(sucesos || '')).toLowerCase();
 
+  if (/virus|encriptado|cifrado|ransomware|ventanas raras|se le ha llenado la pantalla/.test(texto)) return 'virus';
+  // Ojo con \b: sin el, "programa" contiene "ram" y lo clasificaria mal.
+  if (/\bram\b|\bdisco\b|gr[aa]fica|hardware|\btarjeta\b|\bssd\b|nvme|ampliado el ordenador/.test(texto)) return 'hardware';
   if (/destrozado el ordenador|humeando/.test(texto)) return 'ordenador_roto';
   if (/ordenador nuevo/.test(texto)) return 'bono';
   if (/bono/.test(texto)) return 'bono';
@@ -84,6 +115,15 @@ export function elegirAccion(agente, mundo, evento) {
     suma('quejarse', 12);
     suma('trabajar', -12);
   }
+
+  // Un ordenador con virus no impide trabajar, pero desespera. Y hay quien
+  // prefiere limpiarlo antes que seguir arrastrandolo.
+  if (agente.ordenador && agente.ordenador.virus) {
+    suma('limpiar_virus', 34);
+    suma('quejarse', 16);
+    suma('trabajar', -8);
+  }
+
   if (agente.energia < 35) { suma('descansar', 12); suma('cafe', 9); suma('trabajar', -5); }
   if (agente.energia < 15) { suma('descansar', 22); suma('cafe', 15); suma('trabajar', -12); }
   if (agente.moral < 40) { suma('quejarse', 14); suma('trabajar', -4); }
@@ -100,6 +140,8 @@ export function elegirAccion(agente, mundo, evento) {
     case 'precio_bajada': suma('trabajar', 9); suma('motivarse', 7); break;
     case 'fichaje': suma('ayudar', 13); suma('trabajar', 4); break;
     case 'despido': suma('motivarse', 8); suma('quejarse', 9); suma('descansar', 6); break;
+    case 'virus': suma('limpiar_virus', 30); suma('quejarse', 22); suma('renunciar', 2); break;
+    case 'hardware': suma('trabajar', 13); suma('motivarse', 10); break;
     default: break;
   }
 
@@ -119,7 +161,7 @@ export function elegirAccion(agente, mundo, evento) {
 
 /* --------------------------------------------------- elegir frases */
 
-const vozDe = (id) => (VOCES && VOCES[id]) || null;
+const vozDe = (id) => (VOCES_TODAS[id] ? vozCompleta(id) : null);
 
 function fraseDe(id, evento, tipo, tier) {
   const voz = vozDe(id);
@@ -150,18 +192,18 @@ export function detectarIntencion(mensaje) {
 }
 
 function coletillaDe(id, agente, mundo) {
-  if (!COLETILLAS) return null;
+  if (!COLETILLAS_TODAS) return null;
   const e = mundo.empresa;
   const precioBase = 18 + e.calidad * 0.35;
   const candidatas = [];
 
   if (agente.moral < 35) candidatas.push('moralBaja');
   if (agente.energia < 30) candidatas.push('sinEnergia');
-  if (agente.ordenador && agente.ordenador.roto) candidatas.push('ordenadorRoto');
+  if (agente.ordenador && (agente.ordenador.roto || agente.ordenador.virus)) candidatas.push('ordenadorRoto');
   if (e.precio / Math.max(1, precioBase) > 1.3) candidatas.push('precioCaro');
 
   if (!candidatas.length || azar() > 0.55) return null;
-  const grupo = COLETILLAS[elegir(candidatas)];
+  const grupo = COLETILLAS_TODAS[elegir(candidatas)];
   const lista = grupo && grupo[id];
   return elegir(lista);
 }
@@ -296,7 +338,7 @@ export class CerebroSimulado {
       await esperar(450 + azar() * 800);
 
       const intencion = detectarIntencion(mensaje);
-      const voz = RESPUESTAS && RESPUESTAS[agente.id];
+      const voz = RESPUESTAS_TODAS && RESPUESTAS_TODAS[agente.id];
       let dialogo = elegir(voz && voz[intencion]);
 
       // Evita repetir exactamente la misma frase dos veces seguidas.

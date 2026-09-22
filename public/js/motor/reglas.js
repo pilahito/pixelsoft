@@ -25,6 +25,10 @@ const ACCIONES = {
     descripcion: 'arreglar tu ordenador (solo sirve si lo tienes roto)',
     efectos: { estado: 'reparando', sitio: 'escritorio', repara: true, energia: -3 }
   },
+  limpiar_virus: {
+    descripcion: 'limpiar un virus de tu ordenador (solo si tiene virus)',
+    efectos: { estado: 'limpiando', sitio: 'escritorio', limpia: true, energia: -4 }
+  },
   descansar: {
     descripcion: 'tomarte un respiro para recuperar fuerzas',
     efectos: { energia: 12, moral: 1, estado: 'descansando', sitio: 'sofa' }
@@ -126,15 +130,28 @@ function bloqueMundo(mundo) {
   ].join('\n');
 }
 
+/** Niveles de ordenador que puede instalar el jefe. */
+const NIVELES_HARDWARE = [
+  { nombre: 'basico', bonus: 1.0 },
+  { nombre: 'bueno', bonus: 1.25 },
+  { nombre: 'pro', bonus: 1.55 }
+];
+
 /** Bloque con los datos del propio empleado y de sus companeros. */
 function bloqueEquipo(mundo, empleado) {
-  const yo = `Tu: ${empleado.nombre} (${empleado.puesto}) | energia ${Math.round(empleado.energia)}/100 | moral ${Math.round(empleado.moral)}/100 | habilidad ${Math.round(empleado.habilidad)}/100 | ordenador al ${Math.round(empleado.ordenador.salud)}%`;
+  const o = empleado.ordenador || {};
+  const nivel = NIVELES_HARDWARE[(o.nivel || 1) - 1];
+  const yo = `Tu: ${empleado.nombre} (${empleado.puesto}) | energia ${Math.round(empleado.energia)}/100 | moral ${Math.round(empleado.moral)}/100 | habilidad ${Math.round(empleado.habilidad)}/100 | ordenador ${nivel ? nivel.nombre : 'basico'} al ${Math.round(o.salud || 0)}%`;
 
-  // Si tiene el ordenador roto hay que dejarlo MUY claro: los modelos pequenos
-  // se pierden si el dato importante va enterrado entre numeros.
-  const averia = empleado.ordenador.roto
-    ? '\nAVERIA: TU ORDENADOR ESTA ROTO Y NO PUEDES TRABAJAR. Puedes arreglarlo tu (accion "reparar") o quejarte.'
-    : '';
+  // Los problemas del ordenador hay que dejarlos MUY claros: los modelos
+  // pequenos se pierden si el dato importante va enterrado entre numeros.
+  const avisos = [];
+  if (o.roto) {
+    avisos.push('AVERIA: TU ORDENADOR ESTA ROTO Y NO PUEDES TRABAJAR. Puedes arreglarlo tu (accion "reparar") o quejarte.');
+  }
+  if (o.virus) {
+    avisos.push('VIRUS: tu ordenador tiene un virus, va lentisimo y hay ventanas raras. Puedes limpiarlo (accion "limpiar_virus") o quejarte.');
+  }
 
   const otros = mundo.agentes
     .filter((a) => a.id !== empleado.id && !a.dimitido)
@@ -142,7 +159,7 @@ function bloqueEquipo(mundo, empleado) {
     .join(', ');
 
   const lineaOtros = otros ? `\nCompaneros: ${otros}` : '';
-  return yo + averia + lineaOtros;
+  return yo + (avisos.length ? '\n' + avisos.join('\n') : '') + lineaOtros;
 }
 
 /** Bloque de memoria: LO QUE EL MODELO RECUERDA. Lo demas se ha olvidado. */
@@ -223,6 +240,14 @@ function aplicarAccion(mundo, empleado, accion) {
     empleado.reparando = true;
     sucesos.push({ tipo: 'reparacion', texto: `${empleado.nombre} se pone a arreglar su ordenador.` });
   }
+  if (ef.limpia) {
+    if (empleado.ordenador && empleado.ordenador.virus) {
+      empleado.limpiando = true;
+      sucesos.push({ tipo: 'virus', texto: `${empleado.nombre} se pone a quitar el virus de su ordenador.` });
+    } else {
+      sucesos.push({ tipo: 'aviso', texto: `${empleado.nombre} iba a limpiar el ordenador, pero no tenia ningun virus.` });
+    }
+  }
   if (ef.peticionAumento) {
     empleado.peticionAumento = true;
     sucesos.push({ tipo: 'peticion', texto: `${empleado.nombre} te pide un aumento de sueldo.` });
@@ -275,7 +300,15 @@ function crearEmpleado(def, indice, modelo) {
     energia: 70 + Math.round(Math.random() * 20),
     moral: 60 + Math.round(Math.random() * 20),
     habilidad: 30 + Math.round(Math.random() * 30),
-    ordenador: { salud: 100, roto: false, rotoDesde: null },
+    ordenador: {
+      salud: 100,
+      roto: false,
+      rotoDesde: null,
+      virus: false,
+      virusDesde: null,
+      /** 1 = basico, 2 = bueno, 3 = pro. Lo sube el jefe instalando hardware. */
+      nivel: 1
+    },
     recuerdos: [],
     conversacion: [],
     ultimaDecision: null,
@@ -283,6 +316,7 @@ function crearEmpleado(def, indice, modelo) {
     pensando: false,
     pensandoMotivo: null,
     reparando: false,
+    limpiando: false,
     peticionAumento: false,
     dimitido: false,
     _diaActual: 1
@@ -291,6 +325,7 @@ function crearEmpleado(def, indice, modelo) {
 
 export {
   ACCIONES,
+  NIVELES_HARDWARE,
   ESQUEMA_DECISION,
   ESQUEMA_CHARLA,
   systemPrompt,

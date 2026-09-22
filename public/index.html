@@ -128,20 +128,32 @@
         <div class="rejilla-acciones">
           <button class="btn peligro" data-dios="romper" data-requiere-agente="1">💥 Romper su ordenador</button>
           <button class="btn" data-dios="arreglar" data-requiere-agente="1">🔧 Darle uno nuevo</button>
+          <button class="btn peligro" data-dios="meter_virus" data-requiere-agente="1">🦠 Meterle un virus</button>
           <button class="btn" data-dios="reganar" data-requiere-agente="1">📢 Echar una bronca</button>
           <button class="btn bonito" data-dios="bono" data-requiere-agente="1">🎁 Bono de 50 €</button>
           <button class="btn peligro" data-dios="despedir" data-requiere-agente="1">🚪 Despedir</button>
-          <button class="btn" data-dios="cafetera">☕ Comprar cafetera (180 €)</button>
         </div>
         <p class="nota">Necesitan un empleado seleccionado:
           <select id="objetivo-select" class="select-inline"></select>
         </p>
+        <p class="nota">O pulsa directamente sobre un personaje en la oficina.</p>
+      </div>
+
+      <div class="bloque">
+        <h3>🖥️ Hardware y virus</h3>
+        <div class="rejilla-acciones">
+          <button class="btn bonito" data-dios="instalar_hardware" data-requiere-agente="1">⚡ Ampliarle el PC (380/850 €)</button>
+          <button class="btn bonito" data-dios="antivirus">🛡️ Antivirus para todos (240 €)</button>
+          <button class="btn" data-dios="arreglar_todo">🧹 Reparar todos los PC</button>
+        </div>
+        <p class="nota">Cada nivel de hardware (<strong>básico → bueno → pro</strong>) hace que rindan más y que los virus les entren peor.</p>
       </div>
 
       <div class="bloque">
         <h3>🌩️ Poderes de dios</h3>
         <div class="rejilla-acciones">
           <button class="btn bonito" data-dios="contratar">🧑‍💼 Contratar a alguien</button>
+          <button class="btn" data-dios="cafetera">☕ Comprar cafetera (180 €)</button>
           <button class="btn" data-dios="apagon">⚡ Cortar / devolver la luz</button>
           <button class="btn" data-dios="dia_libre">🏖️ Día libre pagado</button>
           <button class="btn" data-dios="alquiler">🏠 Subir alquiler +10 €/día</button>
