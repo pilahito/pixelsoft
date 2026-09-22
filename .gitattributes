@@ -1,0 +1,13 @@
+# Normaliza los finales de linea: el proyecto se edita en Windows pero tiene
+# que verse igual en Linux y macOS.
+* text=auto eol=lf
+
+# Los scripts de Windows necesitan CRLF para funcionar bien.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binarios: que git no los toque
+*.png binary
+*.jpg binary
+*.ico binary
+*.gguf binary

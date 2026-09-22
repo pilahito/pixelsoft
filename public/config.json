@@ -1,0 +1,134 @@
+{
+  "servidor": {
+    "host": "127.0.0.1",
+    "puerto": 3777
+  },
+
+  "llm": {
+    "baseUrl": "http://127.0.0.1:8080",
+    "apiKey": "local-llama",
+    "timeoutMs": 240000,
+    "autoDescubrirClave": true
+  },
+
+  "consumo": {
+    "_comentario": "Topes pensados para que el juego no se coma la maquina. Todos los empleados usan el MISMO modelo, asi que se carga una vez y se queda en VRAM: cero recargas.",
+    "maxTokensDecision": 220,
+    "maxTokensChat": 260,
+    "maxRecuerdos": 6,
+    "maxTurnosConversacion": 8,
+    "maxLlamadasPorMinuto": 18,
+    "pausaEntreLlamadasMs": 250
+  },
+
+  "modeloPorDefecto": "gemma-2-9b-it-q4_k_m",
+
+  "juego": {
+    "tickMs": 1200,
+    "dineroInicial": 500,
+    "precioInicial": 20,
+    "clientesIniciales": 10,
+    "reputacionInicial": 60,
+    "calidadInicial": 40,
+    "horaInicio": 8,
+    "horaFinTrabajo": 18,
+    "salarioPorDia": 25,
+    "alquilerPorDia": 15
+  },
+
+  "niveles": [
+    { "id": "garaje", "nombre": "Garaje", "coste": 0, "maxEmpleados": 4, "multiplicadorClientes": 1.0 },
+    { "id": "oficina", "nombre": "Oficina", "coste": 1800, "maxEmpleados": 6, "multiplicadorClientes": 1.35 },
+    { "id": "planta", "nombre": "Planta completa", "coste": 12000, "maxEmpleados": 6, "multiplicadorClientes": 1.8 },
+    { "id": "torre", "nombre": "Torre PixelSoft", "coste": 45000, "maxEmpleados": 6, "multiplicadorClientes": 2.4 }
+  ],
+
+  "costeContratacion": 150,
+
+  "empleados": [
+    {
+      "id": "ana",
+      "nombre": "Ana",
+      "puesto": "Desarrolladora Senior",
+      "temperatura": 0.7,
+      "aspecto": {
+        "piel": "#e8b48c",
+        "pelo": "#8b3a1f",
+        "camisa": "#3f8f5e",
+        "pantalon": "#33405c",
+        "estiloPelo": "coleta"
+      },
+      "personalidad": "Eres Ana, desarrolladora senior de PixelSoft. Te importa de verdad la calidad del producto y llevas anos aqui. Eres meticulosa, honesta y un poco cabezota: si algo te parece mal lo dices aunque sea incomodo. Cuando el jefe toma una decision que perjudica al producto o a los clientes, te frustras pero no abandonas facil. Hablas en espanol de Espana, con frases cortas y directas, y usas humor seco cuando estas incomoda."
+    },
+    {
+      "id": "bruno",
+      "nombre": "Bruno",
+      "puesto": "Director Tecnico",
+      "temperatura": 0.75,
+      "aspecto": {
+        "piel": "#c98d63",
+        "pelo": "#1c1c22",
+        "camisa": "#7a4bb5",
+        "pantalon": "#2a2f3d",
+        "estiloPelo": "corto"
+      },
+      "personalidad": "Eres Bruno, director tecnico y cofundador de PixelSoft. Piensas en sistemas, margenes y escalabilidad. Eres analitico, ambicioso y sarcastico: suavizas las malas noticias con ironia. Crees que la empresa es un organismo que hay que optimizar y no te tiembla la mano al decir que alguien rinde poco. Hablas en espanol de Espana, con vocabulario tecnico y metaforas de arquitectura de software. Nunca pierdes del todo la compostura."
+    },
+    {
+      "id": "carla",
+      "nombre": "Carla",
+      "puesto": "Soporte y QA",
+      "temperatura": 0.9,
+      "sensibilidadPrecio": 1.0,
+      "aspecto": {
+        "piel": "#8d5a3b",
+        "pelo": "#e0c060",
+        "camisa": "#d4574e",
+        "pantalon": "#3a3348",
+        "estiloPelo": "afro"
+      },
+      "personalidad": "Eres Carla, la de soporte y QA de PixelSoft. Eres quien mas habla con los clientes, asi que sabes exactamente cuanto enfada cada subida de precio. Eres expresiva, dramatica y muy sincera: dices lo que piensas sin filtro, con exageraciones. Te ries de todo, incluso de las desgracias, y si algo va mal lo anuncias como si fuera el fin del mundo. Hablas en espanol coloquial y directo."
+    }
+  ],
+
+  "candidatos": [
+    {
+      "id": "dani",
+      "nombre": "Dani",
+      "puesto": "Becario",
+      "temperatura": 0.85,
+      "sensibilidadPrecio": 0.3,
+      "aspecto": {
+        "piel": "#f0c8a0",
+        "pelo": "#c8862a",
+        "camisa": "#e08a3a",
+        "pantalon": "#3a4a6a",
+        "estiloPelo": "corto"
+      },
+      "personalidad": "Eres Dani, el becario de PixelSoft. Tienes 22 anos, muchisimas ganas y bastante poca idea. Todo te parece fascinante y todo lo preguntas. Eres humilde, optimista y un pelin torpe: a veces rompes cosas sin querer. Tratas a todos de usted menos a ti mismo. Hablas en espanol coloquial, con entusiasmo y alguna exageracion juvenil."
+    },
+    {
+      "id": "elena",
+      "nombre": "Elena",
+      "puesto": "Disenadora de producto",
+      "temperatura": 0.6,
+      "sensibilidadPrecio": 0.6,
+      "aspecto": {
+        "piel": "#d8a882",
+        "pelo": "#5a2a6a",
+        "camisa": "#2f8a9a",
+        "pantalon": "#4a3a5a",
+        "estiloPelo": "coleta"
+      },
+      "personalidad": "Eres Elena, disenadora de producto de PixelSoft. Tienes un ojo brutal para el detalle y te obsesiona que las cosas se vean y se sientan bien. Eres calmada, precisa y muy terca con lo que consideras cutre. Cuando algo se hace rapido y mal, lo dices con elegancia pero sin dejar lugar a dudas. Hablas en espanol de Espana, con vocabulario cuidado y comparaciones visuales."
+    }
+  ],
+
+  "modelosConocidos": {
+    "gemma-2-9b-it-q4_k_m": { "nota": "Modelo por defecto. Rapido, cabe bien en la GPU y respeta el JSON.", "recomendado": true },
+    "Qwen3.5-9b-Claude-4.8": { "nota": "Algo mas creativo. Si lo asignas, el servidor tendra que recargar (~8 s por cambio).", "recomendado": false },
+    "dolphin-2.9.4-llama3.1-8b-q4_k_m": { "nota": "Mas suelto y sarcastico. Tambien obliga a recargar al cambiar.", "recomendado": false },
+    "qwen2.5-coder-7b-instruct-q4_k_m": { "nota": "ROTO: devuelve texto corrupto. No lo uses.", "recomendado": false, "roto": true },
+    "Qwen3.5-9B-The-Defiant-Fable-Uncnr-Heretic-NEO-MAX-MTP-Q4_K_M": { "nota": "ROTO: devuelve contenido vacio. No lo uses.", "recomendado": false, "roto": true }
+  }
+}

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1017">
+<title>PixelSoft · tus IAs locales jugando a ser una empresa</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><rect width='8' height='8' fill='%230d1017'/><rect x='1' y='1' width='2' height='2' fill='%234aa8e0'/><rect x='5' y='1' width='2' height='2' fill='%234aa8e0'/><rect x='1' y='5' width='2' height='2' fill='%234aa8e0'/><rect x='5' y='5' width='2' height='2' fill='%234aa8e0'/></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="cinta-local" id="cinta-local" hidden>
+  🧠 Modo autónomo · los empleados reaccionan con un <strong>cerebro simulado</strong>, no con un modelo real
+</div>
+
+<header class="barra">
+  <div class="marca">
+    <span class="logo">▚</span>
+    <div>
+      <h1>PIXELSOFT</h1>
+      <p class="lema">tus IAs locales, jugando a ser una empresa</p>
+    </div>
+  </div>
+
+  <div class="reloj">
+    <span class="etiqueta">DIA</span>
+    <strong id="hud-dia">1</strong>
+    <span class="etiqueta">HORA</span>
+    <strong id="hud-hora">08:00</strong>
+    <span id="hud-turno" class="pastilla">turno</span>
+  </div>
+
+  <div class="cifras">
+    <div class="cifra" title="Dinero en caja">
+      <span class="etiqueta">CAJA</span><strong id="hud-dinero">0</strong>
+    </div>
+    <div class="cifra" title="Reputacion: cuanto te quieren los clientes">
+      <span class="etiqueta">REPUT.</span><strong id="hud-reputacion">0</strong>
+    </div>
+    <div class="cifra" title="Calidad del producto">
+      <span class="etiqueta">CALIDAD</span><strong id="hud-calidad">0</strong>
+    </div>
+    <div class="cifra" title="Clientes activos">
+      <span class="etiqueta">CLIENTES</span><strong id="hud-clientes">0</strong>
+    </div>
+    <div class="cifra" title="Precio actual por licencia">
+      <span class="etiqueta">PRECIO</span><strong id="hud-precio">0</strong>
+    </div>
+  </div>
+
+  <div class="ia" id="hud-ia" title="Actividad del modelo local">
+    <span class="punto" id="ia-punto"></span>
+    <span id="ia-texto">conectando…</span>
+  </div>
+</header>
+
+<main>
+  <section class="escena">
+    <div class="lienzo-caja" id="lienzo-caja">
+      <button class="zoom-btn" id="zoom-btn" title="Acercar o alejar la oficina">🔍</button>
+      <canvas id="oficina"></canvas>
+      <div class="aviso-apagon" id="aviso-apagon" hidden>⚡ SIN LUZ</div>
+    </div>
+
+    <div class="registro-caja">
+      <div class="registro-cab">
+        <h2>Diario de la empresa</h2>
+        <span class="pista">lo que va pasando, en orden</span>
+      </div>
+      <ol class="registro" id="registro"></ol>
+    </div>
+  </section>
+
+  <aside class="lateral">
+    <nav class="pestanas">
+      <button class="pestana activa" data-panel="poderes">⚡ Poderes</button>
+      <button class="pestana" data-panel="empleados">👤 Empleados</button>
+      <button class="pestana" data-panel="laboratorio">🧠 Laboratorio IA</button>
+      <button class="pestana" data-panel="cerebro">✏️ Cerebro</button>
+    </nav>
+
+    <!-- ------------------------------------------------------ PODERES -->
+    <div class="panel activo" id="panel-poderes">
+      <p class="intro" id="intro-poderes">
+        Eres el jefe. Puedes tocar la empresa cuando quieras: los empleados
+        <strong>reaccionan de verdad</strong> con el modelo que tienes cargado en LM Studio.
+      </p>
+
+      <div class="bloque">
+        <h3>💵 Precio del producto</h3>
+        <div class="precio-fila">
+          <input type="range" id="precio-slider" min="5" max="120" step="1" value="20">
+          <output id="precio-valor">20 €</output>
+        </div>
+        <div class="medidor">
+          <div class="medidor-pista">
+            <div class="medidor-zona" id="precio-zona"></div>
+            <div class="medidor-aguja" id="precio-aguja"></div>
+          </div>
+          <div class="medidor-pie">
+            <span>barato</span>
+            <span id="precio-justo">precio justo: —</span>
+            <span>caro</span>
+          </div>
+        </div>
+        <p class="nota" id="precio-nota">Mueve el mando y suelta. Cada cambio hace pensar a los tres.</p>
+      </div>
+
+      <div class="bloque">
+        <h3>💬 Hablar con alguien</h3>
+        <div class="charla">
+          <div class="charla-destino" id="charla-destinos"></div>
+          <div class="charla-hilo" id="charla-hilo">
+            <p class="vacio">Elige a quién le hablas y escribe abajo.</p>
+          </div>
+          <div class="charla-envio">
+            <input type="text" id="charla-texto" placeholder="Dile algo al oído… (ej: ¿cómo va todo?)" maxlength="400">
+            <button class="btn primario" id="charla-enviar">Enviar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloque">
+        <h3>🔨 Cacharros y trastadas</h3>
+        <div class="rejilla-acciones">
+          <button class="btn peligro" data-dios="romper" data-requiere-agente="1">💥 Romper su ordenador</button>
+          <button class="btn" data-dios="arreglar" data-requiere-agente="1">🔧 Darle uno nuevo</button>
+          <button class="btn" data-dios="reganar" data-requiere-agente="1">📢 Echar una bronca</button>
+          <button class="btn bonito" data-dios="bono" data-requiere-agente="1">🎁 Bono de 50 €</button>
+          <button class="btn peligro" data-dios="despedir" data-requiere-agente="1">🚪 Despedir</button>
+          <button class="btn" data-dios="cafetera">☕ Comprar cafetera (180 €)</button>
+        </div>
+        <p class="nota">Necesitan un empleado seleccionado:
+          <select id="objetivo-select" class="select-inline"></select>
+        </p>
+      </div>
+
+      <div class="bloque">
+        <h3>🌩️ Poderes de dios</h3>
+        <div class="rejilla-acciones">
+          <button class="btn bonito" data-dios="contratar">🧑‍💼 Contratar a alguien</button>
+          <button class="btn" data-dios="apagon">⚡ Cortar / devolver la luz</button>
+          <button class="btn" data-dios="dia_libre">🏖️ Día libre pagado</button>
+          <button class="btn" data-dios="alquiler">🏠 Subir alquiler +10 €/día</button>
+          <button class="btn bonito" data-dios="mejorar">🏗️ Ampliar la oficina</button>
+        </div>
+      </div>
+
+      <div class="bloque">
+        <h3>📊 Cuentas</h3>
+        <div class="cuentas" id="cuentas"></div>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- EMPLEADOS -->
+    <div class="panel" id="panel-empleados">
+      <p class="intro">
+        Cada empleado es <strong>el mismo modelo</strong> con un <em>system prompt</em> distinto.
+        Ahí está la lección: el cerebro es el mismo, la personalidad la pone el texto.
+      </p>
+      <div id="tarjetas-empleados"></div>
+    </div>
+
+    <!-- -------------------------------------------------- LABORATORIO -->
+    <div class="panel" id="panel-laboratorio">
+      <p class="intro" id="intro-laboratorio">
+        Aquí ves <strong>exactamente</strong> lo que se le manda al modelo y lo que devuelve.
+        Esto es una IA por dentro: un texto entra, un texto sale.
+      </p>
+
+      <div class="metricas" id="lab-metricas"></div>
+
+      <div class="bloque">
+        <h3>Últimas llamadas</h3>
+        <div id="lab-llamadas"></div>
+      </div>
+
+      <p class="nota">
+        Fíjate en <strong>prompt tokens</strong>: crece con la memoria y la conversación.
+        Eso es el "contexto", y es lo que limita cuánto puede recordar la IA.
+      </p>
+    </div>
+
+    <!-- ------------------------------------------------------ CEREBRO -->
+    <div class="panel" id="panel-cerebro">
+      <p class="intro">
+        Cambia el texto y mira qué pasa. Bajar la <strong>temperatura</strong> lo vuelve
+        predecible y repetitivo; subirla lo vuelve creativo y disperso.
+      </p>
+      <div class="bloque">
+        <label class="campo">
+          <span>Empleado</span>
+          <select id="cerebro-select"></select>
+        </label>
+
+        <label class="campo">
+          <span>Modelo <em id="cerebro-aviso-modelo"></em></span>
+          <select id="cerebro-modelo"></select>
+        </label>
+
+        <label class="campo">
+          <span>Temperatura: <output id="cerebro-temp-valor">0.7</output></span>
+          <input type="range" id="cerebro-temp" min="0" max="1.5" step="0.05">
+        </label>
+
+        <label class="campo">
+          <span>Personalidad (system prompt)</span>
+          <textarea id="cerebro-personalidad" rows="9"></textarea>
+        </label>
+
+        <div class="rejilla-acciones">
+          <button class="btn primario" id="cerebro-guardar">Guardar cerebro</button>
+          <button class="btn" id="cerebro-ver">Ver prompt exacto</button>
+        </div>
+      </div>
+
+      <div class="bloque">
+        <h3>Memoria actual</h3>
+        <div id="cerebro-memoria" class="memoria"></div>
+        <p class="nota">Solo guarda los últimos recuerdos. Lo viejo se olvida: así funciona el contexto.</p>
+      </div>
+
+      <pre class="prompt-crudo" id="cerebro-prompt" hidden></pre>
+    </div>
+  </aside>
+</main>
+
+<div class="brindis" id="brindis"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

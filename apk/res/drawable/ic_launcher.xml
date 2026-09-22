@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icono de PixelSoft, dibujado como vector (sin ficheros PNG).
+  Es un monitor con lineas de codigo encima de una mesa, en la paleta del juego.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Fondo -->
+    <path android:fillColor="#0D1017" android:pathData="M0,0h108v108h-108z" />
+
+    <!-- Resplandor del monitor -->
+    <path android:fillColor="#123322" android:pathData="M24,16h60v50h-60z" />
+
+    <!-- Marco del monitor -->
+    <path android:fillColor="#1C2029" android:pathData="M28,18h52v44h-52z" />
+    <path android:fillColor="#333A48" android:pathData="M28,18h52v4h-52z" />
+
+    <!-- Pantalla -->
+    <path android:fillColor="#3FBF6F" android:pathData="M33,24h42v32h-42z" />
+
+    <!-- Lineas de codigo -->
+    <path android:fillColor="#0D1017" android:pathData="M38,30h22v3h-22z" />
+    <path android:fillColor="#0D1017" android:pathData="M38,36h30v3h-30z" />
+    <path android:fillColor="#0D1017" android:pathData="M38,42h16v3h-16z" />
+    <path android:fillColor="#0D1017" android:pathData="M38,48h26v3h-26z" />
+
+    <!-- Cuello y pie -->
+    <path android:fillColor="#2A3038" android:pathData="M50,62h8v8h-8z" />
+    <path android:fillColor="#2A3038" android:pathData="M42,70h24v4h-24z" />
+
+    <!-- Mesa -->
+    <path android:fillColor="#A3764F" android:pathData="M16,76h76v8h-76z" />
+    <path android:fillColor="#7D5A3C" android:pathData="M22,84h8v14h-8z" />
+    <path android:fillColor="#7D5A3C" android:pathData="M78,84h8v14h-8z" />
+</vector>

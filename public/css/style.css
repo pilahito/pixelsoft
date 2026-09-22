@@ -1,0 +1,807 @@
+/* =====================================================================
+   PIXELSOFT · estilos
+   Estetica de terminal de los 90 pero legible: monoespaciada, bordes
+   duros, sin radios ni degradados suaves.
+   ===================================================================== */
+
+:root {
+  --fondo: #0d1017;
+  --fondo2: #131824;
+  --fondo3: #1a2130;
+  --borde: #263148;
+  --borde-claro: #35435e;
+  --texto: #dbe3f0;
+  --texto-suave: #8b98b0;
+  --acento: #4aa8e0;
+  --acento2: #6fc4f0;
+  --verde: #4ec97a;
+  --ambar: #e0b93a;
+  --rojo: #e05a4a;
+  --morado: #9a7ae0;
+  --mono: ui-monospace, "Cascadia Mono", "Consolas", "SF Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------- CABECERA */
+
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 8px 16px;
+  background: var(--fondo2);
+  border-bottom: 2px solid var(--borde);
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+}
+
+.marca { display: flex; align-items: center; gap: 10px; }
+
+.logo {
+  font-size: 26px;
+  color: var(--acento);
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(74, 168, 224, 0.5);
+}
+
+.marca h1 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 3px;
+  color: #fff;
+}
+
+.lema { margin: 0; font-size: 10px; color: var(--texto-suave); letter-spacing: 0.5px; }
+
+.reloj {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: var(--fondo3);
+  border: 1px solid var(--borde);
+}
+
+.reloj strong { font-size: 15px; color: #fff; }
+
+.etiqueta {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--texto-suave);
+}
+
+.pastilla {
+  padding: 1px 7px;
+  font-size: 10px;
+  background: #1f3a2a;
+  color: var(--verde);
+  border: 1px solid #2d5540;
+}
+.pastilla.fuera { background: #2a2338; color: var(--morado); border-color: #453563; }
+
+.cifras { display: flex; gap: 16px; flex-wrap: wrap; }
+
+.cifra { display: flex; flex-direction: column; line-height: 1.25; }
+.cifra strong { font-size: 15px; color: #fff; }
+
+.ia {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--texto-suave);
+  padding: 4px 10px;
+  border: 1px solid var(--borde);
+  background: var(--fondo3);
+}
+
+.punto {
+  width: 8px; height: 8px;
+  background: var(--texto-suave);
+  box-shadow: 0 0 8px currentColor;
+  color: var(--texto-suave);
+}
+.punto.ok { background: var(--verde); color: var(--verde); }
+.punto.ocupado { background: var(--ambar); color: var(--ambar); animation: latido 0.8s infinite; }
+.punto.malo { background: var(--rojo); color: var(--rojo); }
+
+@keyframes latido { 50% { opacity: 0.25; } }
+
+/* --------------------------------------------------------------- LAYOUT */
+
+main {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 430px;
+  min-height: 0;
+}
+
+.escena {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 2px solid var(--borde);
+}
+
+.lienzo-caja {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  min-height: 0;
+  background:
+    radial-gradient(ellipse at 50% 40%, #1a2233 0%, #0d1017 75%);
+  overflow: hidden;
+}
+
+#oficina {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border: 2px solid var(--borde-claro);
+  box-shadow: 0 0 0 1px #000, 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+
+.aviso-apagon {
+  position: absolute;
+  top: 22px; left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  background: #2a1a1a;
+  border: 1px solid var(--rojo);
+  color: #ffb0a0;
+  letter-spacing: 2px;
+  animation: latido 1s infinite;
+}
+
+/* El boton de zoom solo existe en el movil: en el PC se ve toda la oficina. */
+.zoom-btn { display: none; }
+
+/* ------------------------------------------------------------ REGISTRO */
+
+.registro-caja {
+  flex: 0 0 210px;
+  display: flex;
+  flex-direction: column;
+  border-top: 2px solid var(--borde);
+  background: var(--fondo2);
+  min-height: 0;
+}
+
+.registro-cab {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--borde);
+}
+.registro-cab h2 { margin: 0; font-size: 11px; letter-spacing: 2px; color: var(--texto-suave); }
+.pista { font-size: 10px; color: #5d6a80; }
+
+.registro {
+  list-style: none;
+  margin: 0;
+  padding: 6px 14px 10px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  font-size: 11.5px;
+}
+
+.registro li {
+  padding: 1px 0;
+  color: var(--texto-suave);
+  border-bottom: 1px solid rgba(38, 49, 72, 0.35);
+}
+.registro li b { color: #6f7d95; font-weight: normal; }
+.registro li.dios { color: #ffd98a; }
+.registro li.dialogo { color: #b8e2ff; }
+.registro li.accion { color: #9fe0b5; }
+.registro li.dimision, .registro li.alerta { color: #ff9b8a; }
+.registro li.reparacion { color: #ffcf7a; }
+.registro li.error { color: var(--rojo); }
+.registro li.peticion { color: #d9b8ff; }
+
+/* --------------------------------------------------------------- LATERAL */
+
+.lateral {
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo2);
+  min-height: 0;
+}
+
+.pestanas {
+  display: flex;
+  flex: 0 0 auto;
+  border-bottom: 2px solid var(--borde);
+  overflow-x: auto;
+}
+
+.pestana {
+  flex: 1 1 auto;
+  padding: 9px 8px;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--borde);
+  color: var(--texto-suave);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pestana:hover { background: var(--fondo3); color: var(--texto); }
+.pestana.activa { background: var(--fondo3); color: var(--acento2); box-shadow: inset 0 -2px 0 var(--acento); }
+
+.panel {
+  display: none;
+  padding: 14px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.panel.activo { display: block; }
+
+.intro { margin: 0 0 14px; font-size: 11.5px; color: var(--texto-suave); line-height: 1.6; }
+.intro strong { color: var(--texto); }
+
+.bloque {
+  margin-bottom: 18px;
+  padding: 11px;
+  background: var(--fondo3);
+  border: 1px solid var(--borde);
+}
+
+.bloque h3 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  color: var(--acento2);
+  text-transform: uppercase;
+}
+
+.nota { margin: 9px 0 0; font-size: 10.5px; color: #6f7d95; line-height: 1.55; }
+.nota strong { color: var(--texto-suave); }
+
+/* --------------------------------------------------------------- BOTONES */
+
+.btn {
+  padding: 7px 10px;
+  background: #202a3c;
+  border: 1px solid var(--borde-claro);
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, transform 0.05s;
+}
+.btn:hover { background: #2a3648; border-color: #4a5c7d; }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn.primario { background: #1d4a6b; border-color: #2f6f9c; color: #d6eeff; }
+.btn.primario:hover { background: #245b83; }
+.btn.peligro { background: #4a2020; border-color: #7d3a34; color: #ffd0c8; }
+.btn.peligro:hover { background: #5c2828; }
+.btn.bonito { background: #23422c; border-color: #3a6b47; color: #cdf0d8; }
+.btn.bonito:hover { background: #2c5437; }
+
+.rejilla-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+@media (max-width: 1500px) {
+  .rejilla-acciones { grid-template-columns: 1fr; }
+}
+
+/* ---------------------------------------------------------------- RANGOS */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #1a2130;
+  border: 1px solid var(--borde-claro);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 20px;
+  margin-top: -8px;
+  background: var(--acento);
+  border: 1px solid #7cc8f0;
+}
+input[type="range"]::-moz-range-track { height: 6px; background: #1a2130; border: 1px solid var(--borde-claro); }
+input[type="range"]::-moz-range-thumb { width: 12px; height: 20px; border-radius: 0; background: var(--acento); border: 1px solid #7cc8f0; }
+
+.precio-fila { display: flex; align-items: center; gap: 12px; }
+.precio-fila output { font-size: 17px; color: #fff; min-width: 62px; text-align: right; }
+
+.medidor { margin-top: 8px; }
+.medidor-pista {
+  position: relative;
+  height: 12px;
+  background: linear-gradient(90deg, #2a5a8a 0%, #2f6b4a 45%, #6b5a2a 70%, #6b2a2a 100%);
+  border: 1px solid var(--borde-claro);
+}
+.medidor-zona {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(255, 255, 255, 0.22);
+  border-left: 1px solid rgba(255,255,255,0.5);
+  border-right: 1px solid rgba(255,255,255,0.5);
+}
+.medidor-aguja {
+  position: absolute; top: -3px; bottom: -3px;
+  width: 3px;
+  background: #fff;
+  box-shadow: 0 0 6px #fff;
+}
+.medidor-pie { display: flex; justify-content: space-between; font-size: 9.5px; color: #6f7d95; margin-top: 3px; }
+
+/* --------------------------------------------------------------- CHARLA */
+
+.charla-destino { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+
+.chip {
+  padding: 4px 9px;
+  background: #202a3c;
+  border: 1px solid var(--borde-claro);
+  color: var(--texto-suave);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.chip:hover { border-color: #4a5c7d; color: var(--texto); }
+.chip.activo { background: #1d4a6b; border-color: var(--acento); color: #d6eeff; }
+
+.charla-hilo {
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #10141d;
+  border: 1px solid var(--borde);
+  margin-bottom: 8px;
+}
+
+.charla-hilo .turno { margin-bottom: 8px; font-size: 11px; line-height: 1.5; }
+.charla-hilo .turno .quien { font-size: 9.5px; letter-spacing: 1px; color: #6f7d95; display: block; }
+.charla-hilo .turno.jefe .texto { color: #cfe6ff; }
+.charla-hilo .turno.agente .texto { color: #ffe2b0; }
+.charla-hilo .vacio { margin: 0; font-size: 11px; color: #5d6a80; }
+.charla-hilo .pensando { font-size: 11px; color: var(--acento2); }
+
+.charla-envio { display: flex; gap: 7px; }
+.charla-envio input {
+  flex: 1 1 auto;
+  padding: 7px 9px;
+  background: #10141d;
+  border: 1px solid var(--borde-claro);
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  min-width: 0;
+}
+.charla-envio input:focus { outline: none; border-color: var(--acento); }
+
+/* --------------------------------------------------------------- CAMPOS */
+
+.select-inline {
+  background: #202a3c;
+  border: 1px solid var(--borde-claro);
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 5px;
+  margin-left: 4px;
+}
+
+.campo { display: block; margin-bottom: 11px; }
+.campo > span { display: block; font-size: 10px; letter-spacing: 1px; color: var(--texto-suave); margin-bottom: 4px; text-transform: uppercase; }
+.campo > span em { text-transform: none; letter-spacing: 0; color: var(--ambar); font-style: normal; font-size: 10px; }
+
+.campo select, .campo textarea {
+  width: 100%;
+  padding: 7px 8px;
+  background: #10141d;
+  border: 1px solid var(--borde-claro);
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  resize: vertical;
+}
+.campo select:focus, .campo textarea:focus { outline: none; border-color: var(--acento); }
+
+/* ------------------------------------------------------------ EMPLEADOS */
+
+.tarjeta {
+  padding: 11px;
+  background: var(--fondo3);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--acento);
+  margin-bottom: 11px;
+}
+.tarjeta.dimitido { opacity: 0.45; border-left-color: #555; }
+.tarjeta.roto { border-left-color: var(--rojo); }
+
+.tarjeta-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 7px; }
+.tarjeta-cab strong { font-size: 13.5px; color: #fff; }
+.tarjeta-cab .puesto { font-size: 10px; color: var(--texto-suave); }
+.tarjeta-cab .estado { font-size: 10px; padding: 1px 6px; background: #202a3c; border: 1px solid var(--borde-claro); color: var(--acento2); }
+
+.barras { display: grid; gap: 4px; margin-bottom: 8px; }
+.barra-fila { display: grid; grid-template-columns: 52px 1fr 34px; align-items: center; gap: 7px; font-size: 9.5px; color: var(--texto-suave); }
+.barra-pista { height: 8px; background: #10141d; border: 1px solid var(--borde); }
+.barra-relleno { height: 100%; }
+.barra-valor { text-align: right; color: var(--texto); }
+
+.dicho {
+  padding: 7px 8px;
+  background: #10141d;
+  border-left: 2px solid var(--acento);
+  font-size: 11px;
+  color: #cfe6ff;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+.dicho .rotulo { display: block; font-size: 9px; letter-spacing: 1px; color: #6f7d95; margin-bottom: 2px; }
+.dicho.pensamiento { border-left-color: var(--morado); color: #dccfff; }
+.dicho.objetivo { border-left-color: var(--verde); color: #cdf0d8; }
+
+.memoria { font-size: 11px; color: var(--texto-suave); }
+.memoria ul { margin: 0; padding-left: 16px; }
+.memoria li { margin-bottom: 3px; line-height: 1.45; }
+
+.metricas { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 14px; }
+.metrica { padding: 8px 9px; background: var(--fondo3); border: 1px solid var(--borde); }
+.metrica .etiqueta { display: block; }
+.metrica strong { font-size: 15px; color: #fff; }
+
+.llamada {
+  margin-bottom: 9px;
+  background: var(--fondo3);
+  border: 1px solid var(--borde);
+}
+.llamada.fallo { border-color: #6b2a2a; }
+.llamada-cab {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 9px;
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+.llamada-cab:hover { background: #202a3c; }
+.llamada-cab .quien { font-size: 11px; color: #fff; }
+.llamada-cab .meta { font-size: 9.5px; color: var(--texto-suave); margin-left: auto; }
+
+.insignia {
+  font-size: 9px;
+  padding: 1px 5px;
+  border: 1px solid var(--borde-claro);
+  background: #202a3c;
+  color: var(--texto-suave);
+}
+.insignia.ok { border-color: #2d5540; background: #1f3a2a; color: var(--verde); }
+.insignia.malo { border-color: #7d3a34; background: #3a1f1f; color: #ff9b8a; }
+.insignia.carga { border-color: #6b5a2a; background: #3a3320; color: var(--ambar); }
+
+.llamada-cuerpo { display: none; padding: 0 9px 9px; border-top: 1px solid var(--borde); }
+.llamada.abierta .llamada-cuerpo { display: block; }
+
+pre.prompt-crudo {
+  margin: 7px 0;
+  padding: 8px;
+  background: #0a0d13;
+  border: 1px solid var(--borde);
+  font-size: 10px;
+  line-height: 1.5;
+  color: #9fe0b5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+pre.prompt-crudo .rol { color: var(--acento2); }
+pre.prompt-crudo .clave { color: #ffd98a; }
+
+.respuesta-cruda { font-size: 11px; color: #dccfff; white-space: pre-wrap; word-break: break-word; }
+
+/* -------------------------------------------------------------- CUENTAS */
+
+.cuentas { display: grid; gap: 5px; font-size: 11px; }
+.cuenta-fila { display: flex; justify-content: space-between; gap: 10px; }
+.cuenta-fila .k { color: var(--texto-suave); }
+.cuenta-fila .v { color: var(--texto); }
+.cuenta-fila .v.bien { color: var(--verde); }
+.cuenta-fila .v.mal { color: var(--rojo); }
+
+/* -------------------------------------------------------------- BRINDIS */
+
+.brindis {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%) translateY(20px);
+  padding: 9px 18px;
+  background: #1a2130;
+  border: 1px solid var(--acento);
+  color: var(--texto);
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s;
+  max-width: 70vw;
+  z-index: 50;
+}
+.brindis.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.brindis.error { border-color: var(--rojo); }
+
+/* ------------------------------------------------------------- SCROLLBAR */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0d1017; }
+::-webkit-scrollbar-thumb { background: #2a3648; border: 2px solid #0d1017; }
+::-webkit-scrollbar-thumb:hover { background: #3a4a63; }
+
+@media (max-width: 1100px) {
+  main { grid-template-columns: 1fr; }
+  .escena { border-right: 0; border-bottom: 2px solid var(--borde); }
+  .lateral { max-height: 55vh; }
+}
+
+/* =====================================================================
+   CINTA DE MODO AUTONOMO
+   ===================================================================== */
+
+.cinta-local {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  background: #241d3a;
+  border-bottom: 1px solid #453563;
+  color: #d3c4ff;
+  font-size: 11px;
+  text-align: center;
+}
+.cinta-local strong { color: #fff; }
+
+.insignia.sim {
+  border-color: #5a4a8a;
+  background: #241d3a;
+  color: #c9b8ff;
+}
+
+/* =====================================================================
+   MOVIL  ·  pantalla tactil, vertical, dedos gordos
+   El lienzo va arriba, los paneles debajo, y la pagina entera hace scroll
+   en vez de tener zonas con scroll interno (que en movil es incomodisimo).
+   ===================================================================== */
+
+@media (max-width: 760px) {
+
+  html, body { height: auto; overflow: visible; }
+
+  body {
+    display: block;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* --- Cabecera compacta y pegajosa
+     (el dia, la caja y el precio siempre a la vista) */
+  .barra {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    gap: 8px 12px;
+    padding: 6px 10px;
+    padding-top: calc(6px + env(safe-area-inset-top));
+  }
+
+  .marca { gap: 7px; }
+  .logo { font-size: 19px; }
+  .marca h1 { font-size: 13px; letter-spacing: 2px; }
+  .lema { display: none; }
+
+  .reloj { padding: 3px 8px; gap: 5px; }
+  .reloj strong { font-size: 12.5px; }
+  .etiqueta { font-size: 8px; }
+
+  .cifras { gap: 11px; order: 3; width: 100%; justify-content: space-between; }
+  .cifra strong { font-size: 13px; }
+
+  .ia { order: 4; width: 100%; margin-left: 0; font-size: 10px; padding: 3px 8px; }
+
+  .cinta-local { font-size: 10px; padding: 5px 10px; }
+
+  /* --- Escena */
+  main { display: block; }
+  .escena { border-right: 0; border-bottom: 0; }
+
+  .lienzo-caja {
+    padding: 6px;
+    background: #0d1017;
+    /* En el movil la oficina se puede arrastrar en horizontal cuando hay zoom */
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .lienzo-caja::-webkit-scrollbar { height: 5px; }
+  .lienzo-caja::-webkit-scrollbar-thumb { background: #35435e; border: 0; }
+
+  #oficina {
+    width: 100%;
+    max-height: none;
+    flex: 0 0 auto;
+    margin: 0 auto;
+    border-width: 1px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  }
+
+  /* Con zoom, el lienzo es mas ancho que la pantalla y se arrastra.
+     OJO: hay que anular el max-width de la regla base, o no crece. */
+  .lienzo-caja.zoom #oficina {
+    width: 195%;
+    max-width: none;
+    margin: 0;
+  }
+
+  .zoom-btn {
+    display: block;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    font-size: 17px;
+    line-height: 1;
+    background: rgba(19, 24, 36, 0.92);
+    border: 1px solid var(--borde-claro);
+    color: var(--texto);
+    cursor: pointer;
+  }
+  .zoom-btn:active { background: #2a3648; }
+  .zoom-btn.activo { border-color: var(--acento); color: var(--acento2); }
+
+  /* --- Diario: que encoja cuando esta vacio, en vez de dejar un hueco.
+     Hay que anular el flex-basis de la regla base o se queda clavado. */
+  .registro-caja {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: 200px;
+    border-top-width: 2px;
+  }
+  .registro {
+    font-size: 10.5px;
+    padding: 4px 10px 8px;
+    max-height: 155px;
+  }
+  .registro-cab { padding: 5px 10px; }
+  .registro-cab h2 { font-size: 10px; }
+  .pista { display: none; }
+
+  /* --- Paneles */
+  .lateral { max-height: none; }
+
+  .pestanas {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--fondo2);
+  }
+
+  .pestana {
+    padding: 12px 6px;
+    font-size: 10px;
+  }
+
+  .panel { overflow: visible; padding: 10px; }
+
+  .intro { font-size: 11px; margin-bottom: 11px; }
+
+  .bloque { padding: 10px; margin-bottom: 13px; }
+
+  /* --- Botones y chips: que se puedan pulsar con el dedo */
+  .rejilla-acciones { grid-template-columns: 1fr; gap: 8px; }
+
+  .btn {
+    padding: 12px 12px;
+    font-size: 12.5px;
+    text-align: center;
+  }
+
+  .chip { padding: 9px 13px; font-size: 12.5px; }
+
+  /* --- El input a 16px evita que iOS haga zoom solo al enfocarlo */
+  .charla-envio input { font-size: 16px; padding: 10px; }
+  .charla-envio { gap: 6px; }
+  .charla-envio .btn { padding: 12px 14px; }
+
+  .charla-hilo { max-height: 260px; }
+  .charla-hilo .turno { font-size: 12px; }
+
+  /* --- Mandos mas gordos */
+  input[type="range"] { height: 38px; }
+  input[type="range"]::-webkit-slider-runnable-track { height: 10px; }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 26px;
+    height: 34px;
+    margin-top: -13px;
+  }
+  input[type="range"]::-moz-range-thumb { width: 24px; height: 32px; }
+
+  .precio-fila output { font-size: 16px; min-width: 58px; }
+
+  .campo select, .campo textarea { font-size: 15px; padding: 10px; }
+  .campo > span { font-size: 9.5px; }
+
+  .metricas { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .metrica strong { font-size: 13px; }
+
+  .llamada-cab { padding: 9px; }
+  .llamada-cab .quien { font-size: 11.5px; }
+  .llamada-cab .meta { font-size: 9px; margin-left: 0; width: 100%; }
+
+  pre.prompt-crudo { font-size: 9.5px; max-height: 240px; }
+
+  .tarjeta { padding: 10px; }
+  .barra-fila { grid-template-columns: 46px 1fr 30px; font-size: 9px; }
+
+  .brindis {
+    bottom: 12px;
+    left: 8px;
+    right: 8px;
+    transform: translateY(20px);
+    max-width: none;
+    font-size: 11.5px;
+    text-align: center;
+  }
+  .brindis.visible { transform: translateY(0); }
+
+  .aviso-apagon { top: 10px; font-size: 11px; }
+}
+
+/* Moviles muy estrechos: la cabecera se aprieta mas */
+@media (max-width: 400px) {
+  .cifras { gap: 7px; }
+  .cifra strong { font-size: 12px; }
+  .cifra .etiqueta { font-size: 7.5px; }
+  .logo { display: none; }
+}
+
+/* En horizontal (movil girado) el lienzo manda y el diario se hace a un lado */
+@media (orientation: landscape) and (max-height: 520px) {
+  .registro-caja { height: 96px; }
+  .lienzo-caja { padding: 3px; }
+}

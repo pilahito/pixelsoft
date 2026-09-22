@@ -1,0 +1,26 @@
+# Dependencias y compilacion
+node_modules/
+.build/
+apk/build/
+apk/assets/
+
+# Ejecutables generados (van en las Releases, no en el repositorio)
+PixelSoft.exe
+PixelSoft.apk
+*.exe
+*.apk
+*.idsig
+
+# Claves de firma: NUNCA al repositorio
+*.keystore
+*.jks
+
+# Salidas sueltas de depuracion
+_salida.txt
+_error.txt
+*.log
+
+# Sistema
+Thumbs.db
+Desktop.ini
+.DS_Store
