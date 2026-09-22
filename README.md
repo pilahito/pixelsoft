@@ -1,14 +1,20 @@
 # PIXELSOFT
 
-**Tus IAs locales jugando a ser una empresa.** Tú eres el jefe (y un poco dios).
-Ellos trabajan, se quejan, reparan sus ordenadores y te contestan de verdad,
-porque detrás de cada personaje hay un modelo real corriendo en tu máquina.
+**Un tycoon en pixel art donde tus IAs locales son los empleados.** Tú eres el
+jefe (y un poco dios): subes precios, compras habitaciones, repartes bonus,
+rompes ordenadores y les metes virus. Ellos trabajan, se quejan, lo reparan y te
+contestan de verdad, porque detrás de cada personaje hay un modelo real
+corriendo en tu máquina.
 
 ```
    Tú tocas la empresa  →  el empleado RECIBE un texto  →  el modelo piensa
                                                               ↓
    la oficina cambia    ←  las reglas aplican su decisión  ←  devuelve JSON
 ```
+
+Juega en el **PC** (con las IAs de verdad) o en el **móvil con un APK autónomo**
+(con un cerebro simulado, porque un teléfono no puede mover un modelo de 9B).
+El motor del juego es exactamente el mismo en los dos sitios.
 
 ---
 
@@ -18,7 +24,7 @@ porque detrás de cada personaje hay un modelo real corriendo en tu máquina.
 
 - **LM Studio** abierto con el servidor local activo en el puerto **8080**.
   - En LM Studio: pestaña *Developer* → *Start Server*. El puerto por defecto suele
-    ser 1234, así que si lo tienes en otro sitio, cámbialo en `config.json`.
+    ser 1234, así que si lo tienes en otro sitio, cámbialo en `public/config.json`.
 - **Node.js 20 o superior** (tú tienes el 26).
 
 ### Arrancar
@@ -47,6 +53,66 @@ Verás algo así al arrancar:
 
 > Si dice `FALLO`, el juego arranca igual pero los empleados no podrán pensar.
 > Abre LM Studio y activa el servidor local.
+
+---
+
+## 1.5. Compilar el `.exe` y el `.apk`
+
+El juego se puede empaquetar en dos formatos, y los dos scripts están incluidos.
+
+### Windows: `PixelSoft.exe`
+
+```bash
+node tools/construir-exe.js
+```
+
+Genera **`PixelSoft.exe`** (unos 100 MB) en la raíz del proyecto. Lleva dentro
+Node y el juego entero, así que **funciona en cualquier PC sin instalar nada**.
+
+- Doble clic: arranca y abre el navegador solo.
+- `PixelSoft.exe --red`: lo abre a la red local, para jugar desde el móvil.
+
+Necesita Node 24+ en **tu** máquina para construirlo, y `esbuild` (si tienes LM
+Studio ya lo trae; si no, `npm install -g esbuild`).
+
+### Android: `PixelSoft.apk`
+
+```bash
+node tools/construir-apk.js
+```
+
+Genera **`PixelSoft.apk`** (~100 KB) en la raíz. Es autónomo: lleva el juego
+dentro y no necesita PC ni conexión.
+
+Necesita el SDK de Android (`ANDROID_HOME`, o en `C:\Android\Sdk`). No usa
+Gradle ni hace falta internet: llama directamente a `aapt2`, `d8`, `zipalign` y
+`apksigner`.
+
+Para instalarlo en el emulador o en un móvil por USB:
+
+```bash
+adb install -r PixelSoft.apk
+```
+
+> **Ojo con la firma.** El APK se firma con una clave de depuración que se crea
+> la primera vez en `apk/debug.keystore`. **No borres ese fichero**: si cambia,
+> Android no te dejará actualizar encima y tendrás que desinstalar antes. Está
+> en `.gitignore` a propósito (las claves no van al repositorio), así que
+> guárdalo aparte si vas a compilar en otro sitio.
+
+### ⚠️ Aviso sobre el antivirus
+
+Un `.exe` de Node es, literalmente, *"una copia de `node.exe` con datos pegados
+al final"*. Esa es también la forma que tienen muchos programas maliciosos, así
+que **es normal que algunos antivirus se pongan nerviosos**.
+
+A mí me pasó con Kaspersky: al construir el ejecutable deshizo cambios recientes
+y se llevó por delante ficheros del proyecto. Si te ocurre, añade una exclusión
+para la carpeta del juego (o al menos para `PixelSoft.exe`) en tu antivirus, y
+compila con el proyecto ya respaldado.
+
+El código está entero a la vista en este repositorio: puedes leerlo antes de
+ejecutar nada.
 
 ---
 
@@ -242,59 +308,116 @@ Lo que le digas **se lo queda en la memoria**, y lo verás en su tarjeta.
 
 | Poder | Qué hace |
 |---|---|
-| 🧑‍💼 Contratar a alguien | 150 €. Ficha a Dani (becario) o Elena (diseñadora). Ojo: cada uno cuesta 25 €/día |
 | 💥 Romper su ordenador | Se queda parado sin trabajar. Intentará repararlo |
 | 🔧 Darle uno nuevo | Se lo arreglas tú |
+| 🦠 **Meterle un virus** | La pantalla se llena de ventanas raras. Rinde al 45% y se contagia a los compañeros |
+| 🛡️ Antivirus para todos | 240 €. Limpia todo de golpe y frena los contagios |
+| ⚡ Ampliarle el PC | 380 € el primer nivel, 850 € el segundo: básico → bueno → pro |
 | 📢 Echar una bronca | Le bajas la moral 20 |
 | 🎁 Bono de 50 € | Sube la moral a todos. Cuesta dinero |
 | 🚪 Despedir | Se va, y a los demás les baja la moral. **Su escritorio queda libre** |
+| 🧑‍💼 Contratar a alguien | 150 €. Hay 5 candidatos, pero solo si tienes escritorio libre |
 | ☕ Comprar cafetera | 180 €. El café pasa a dar más energía |
 | ⚡ Cortar la luz | Se apagan todos los monitores, todos parados |
 | 🏖️ Día libre | Se van a casa con la moral alta |
 | 🏠 Subir alquiler | +10 €/día de coste fijo |
-| 🏗️ Ampliar oficina | Garaje (4 empleados) → Oficina (6) → Planta → Torre |
+| 🏗️ Comprar habitación | La oficina crece. Ver abajo |
 
-> **El bucle de crecimiento:** empiezas con 3 en un garaje. Ahorras, contratas al
-> becario, la calidad sube, el precio justo sube, ganas más, amplías la oficina,
-> contratas a la diseñadora… y así. Pero cada fichaje son 25 € al día de nómina.
+### 🏗️ La oficina se amplía por habitaciones
+
+Esto es el corazón del juego: **empiezas en una sola habitación** y la empresa
+va creciendo. Las que no has comprado salen a oscuras, con un candado y su
+precio.
+
+| Habitación | Precio | Qué aporta |
+|---|---|---|
+| Zona de trabajo | gratis | Los 3 primeros escritorios |
+| Sala de descanso | 700 € | Recuperan moral y energía mucho más rápido |
+| Sala de servidores | 1.600 € | Los virus se contagian la mitad |
+| Ala ampliada | 2.600 € | 3 escritorios más (hasta 6 empleados) |
+| Sala de reuniones | 4.200 € | La calidad del producto sube más rápido |
+| Cocina | 6.000 € | Aguantan mejor la jornada sin desplomarse |
+
+Cada habitación comprada también sube los **clientes potenciales** un 13%: una
+oficina más grande impresiona. Y fíjate en el detalle: **los escritorios del ala
+ampliada no existen hasta que compras esa habitación**, así que no puedes
+contratar a nadie más hasta entonces.
+
+> **El bucle de crecimiento:** empiezas con 3 personas en una sala. Ahorras,
+> compras la sala de descanso, trabajan más contentos, sube la calidad, sube el
+> precio justo, ganas más, compras el ala ampliada, contratas a Sofia (que
+> lleva las cuentas), luego a Marcos (que te monta los servidores)… y así.
 >
 > Con el balance por defecto: ~**220 €/día de ingresos** contra ~**90 €/día de
-> costes** = **+130 €/día**. La primera ampliación (1.800 €) cae en unos 7
-> minutos de partida.
+> costes** = **+130 €/día**. La primera habitación (700 €) cae en unos 5 minutos.
 >
 > **Truco:** el ordenador roto no se queda roto para siempre. Si el modelo no
 > elige `reparar`, el empleado se cansa de esperar a los pocos turnos y lo
 > arregla por su cuenta. Nadie mira un monitor humeante eternamente.
 
-![Panel de cuentas](capturas/6-cuentas.png)
+![La oficina con las seis habitaciones compradas](capturas/salas.png)
+
+### 👥 Quién trabaja aquí
+
+| Empleado | Puesto | Cómo es |
+|---|---|---|
+| **Ana** | Desarrolladora senior | Meticulosa y honesta. Si algo está mal, lo dice |
+| **Bruno** | Director técnico | Analítico y sarcástico. Piensa en márgenes |
+| **Carla** | Soporte y QA | Dramática y sin filtro. Sabe lo que enfadan los precios |
+| **Dani** | Becario | Muchas ganas, poca idea |
+| **Elena** | Diseñadora | Le obsesiona que las cosas se vean bien |
+| **Sofía** | Administradora | Le duele cada euro que se gasta |
+| **Marcos** | DevOps | Los servidores son suyos y se lo toma a pecho |
+| **Lucía** | Comercial | Encantadora e insistente. Vive de la reputación |
+
+![Las seis habitaciones en el móvil](capturas/apk-final.png)
 
 ---
 
 ## 5. Mapa del código
 
 ```
-config.json          Ajustes: modelo, personalidades, economia, topes de consumo
-server.js            Servidor HTTP + API + canal en vivo (SSE). Sin dependencias
+public/config.json   TODO lo que puedes trastear sin tocar codigo: modelo,
+                     personalidades, economia, habitaciones y topes de consumo
 
-game/
+server.js            Arranque en el PC (Node). Solo resuelve de donde salen
+                     los ficheros y llama al servidor.
+
+game/                Solo existe en el PC
+  servidor.js        El servidor: HTTP + API + canal en vivo (SSE)
+  cerebro-real.js    El cerebro que llama al modelo de LM Studio
   llm.js             Cliente del modelo: cola, metricas, parseo de JSON, log
-  agents.js          Personalidades, prompts, memoria, catalogo de acciones
-  world.js           Economia, reloj, poderes de dios, cola de pensamiento
+
+public/js/motor/     EL MOTOR DEL JUEGO. Es el mismo en PC y en movil.
+  reglas.js          Personalidades, prompts, memoria, catalogo de acciones
+  mundo.js           Economia, reloj, poderes de dios, habitaciones, virus
+  cerebro-simulado.js El cerebro del movil: reglas + frases escritas a mano
+  voces.js           Reacciones de los 5 personajes de siempre (425 frases)
+  charla.js          Conversacion de esos 5 (120 frases)
+  reclutas.js        Los 3 fichajes nuevos y su voz (327 frases)
+  eventos-extra.js   Reacciones a virus y hardware (160 frases)
 
 public/
-  index.html         Estructura
-  css/style.css      Estilos
+  index.html         Estructura de la interfaz
+  css/style.css      Estilos (incluye el modo movil y el zoom tactil)
   js/sprites.js      TODO el pixel art, dibujado por codigo
-  js/render.js       Pinta la oficina (ordenado por profundidad)
-  js/app.js          Une el servidor con la interfaz
+  js/render.js       Pinta la oficina y las habitaciones por profundidad
+  js/app.js          Une el motor con la interfaz. Sirve para los dos modos
 
+apk/                 Proyecto Android (Java puro, sin Gradle)
 tools/
-  captura.js         Saca capturas del juego en Edge headless y avisa de errores
-  js/*.js            Scripts que usa la herramienta de captura
+  construir-exe.js   Fabrica PixelSoft.exe
+  construir-apk.js   Fabrica PixelSoft.apk
+  captura.js         Capturas + errores de consola en Edge headless
 ```
 
-**No hay dependencias externas.** Ni React, ni Vite, ni un `npm install`. Solo
-Node y el navegador: se puede leer entero y entenderlo.
+**No hay dependencias externas.** Ni React, ni Vite, ni un `npm install` para
+jugar. Solo Node y el navegador: se puede leer entero y entenderlo.
+
+El truco que hace posible tener PC y móvil con el mismo código: el motor del
+juego no sabe **quién** decide, solo pide decisiones. En el PC se le inyecta un
+cerebro que llama al modelo de verdad; en el móvil, uno simulado. El resto
+—economía, habitaciones, virus, pixel art— es exactamente el mismo fichero.
 
 El navegador **nunca** llama al modelo directamente. Lo hace `server.js`, por dos
 motivos: el modelo pide cabecera `Authorization`, y tu llama-server corre con
@@ -322,7 +445,7 @@ encolarlas. De eso se encarga `game/llm.js`.
 
 ---
 
-## 7. Ajustes rápidos (`config.json`)
+## 7. Ajustes rápidos (`public/config.json`)
 
 | Clave | Por defecto | Para qué |
 |---|---|---|
@@ -333,13 +456,18 @@ encolarlas. De eso se encarga `game/llm.js`.
 | `consumo.maxRecuerdos` | `6` | Cuántas cosas recuerda cada uno |
 | `consumo.maxLlamadasPorMinuto` | `18` | El freno de mano del consumo |
 | `costeContratacion` | `150` | Lo que cuesta fichar a alguien |
-| `niveles[].coste` | `1800` | Lo que cuesta ampliar la oficina |
+| `habitaciones[].coste` | `700`…`6000` | Lo que cuesta cada habitación nueva |
+| `habitaciones[].escritorios` | `3` | Cuántas mesas añade (0 = no añade ninguna) |
 | `juego.tickMs` | `1200` | Un tick = una hora de juego, cada 1,2 s reales |
 | `juego.salarioPorDia` | `25` | Lo que cuesta cada empleado al día |
 
 > Si quieres una partida **más rápida o más lenta**, toca el multiplicador de
-> ingresos en `game/world.js` (busca `e.clientes * e.precio * 0.11`). Subirlo
-> hace la empresa más rentable; bajarlo, más dura.
+> ingresos en `public/js/motor/mundo.js` (busca `e.clientes * e.precio * 0.11`).
+> Subirlo hace la empresa más rentable; bajarlo, más dura.
+>
+> Para añadir una habitación nueva: añádela a `habitaciones` en el config con su
+> `x`, `y`, `ancho` y `alto`, y píntale el mobiliario en `MOBILIARIO`, dentro de
+> `public/js/render.js`. El motor la reconocerá sola.
 
 En `empleados` (los que empiezan) y `candidatos` (los que puedes fichar) puedes
 cambiar nombres, puestos, colores y personalidades. Los colores son: `piel`,
