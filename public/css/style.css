@@ -542,6 +542,32 @@ pre.prompt-crudo .clave { color: #ffd98a; }
 .cuenta-fila .v.bien { color: var(--verde); }
 .cuenta-fila .v.mal { color: var(--rojo); }
 
+/* ---------------------------------------------------------- HABITACIONES */
+
+.sala {
+  padding: 9px 10px;
+  margin-bottom: 8px;
+  background: #10141d;
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--borde-claro);
+}
+.sala.comprada {
+  border-left-color: var(--verde);
+  background: #121a17;
+}
+.sala-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.sala-cab strong { font-size: 12px; color: #fff; }
+.sala-aporta { font-size: 10.5px; color: var(--texto-suave); line-height: 1.5; margin-bottom: 7px; }
+.sala-aporta em { color: var(--acento2); font-style: normal; }
+.sala .btn { width: 100%; text-align: center; }
+.sala.comprada .sala-aporta { margin-bottom: 0; }
+
 /* -------------------------------------------------------------- BRINDIS */
 
 .brindis {

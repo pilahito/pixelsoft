@@ -338,15 +338,15 @@ export function dibujarEmote(ctx, x, y, tipo, t = 0) {
 
 /* ========================================================== MOBILIARIO */
 
-/** Casilla de suelo tipo moqueta, con damero suave y calido. */
-export function dibujarSuelo(ctx, cx, cy, variante = 0) {
+/** Casilla de suelo tipo moqueta. El color lo pone la habitacion. */
+export function dibujarSuelo(ctx, cx, cy, variante = 0, color = '#4a5a72') {
   const x = cx * TAM;
   const y = cy * TAM;
-  const claro = (cx + cy) % 2 === 0;
-  r(ctx, x, y, TAM, TAM, claro ? '#4a5a72' : '#455468');
+  r(ctx, x, y, TAM, TAM, color);
 
-  ctx.fillStyle = claro ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.05)';
+  ctx.fillStyle = 'rgba(255,255,255,0.035)';
   ctx.fillRect(x + 2, y + 2, TAM - 4, 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.05)';
   ctx.fillRect(x + 2, y + TAM - 6, TAM - 4, 2);
 
   if (variante % 9 === 3) {

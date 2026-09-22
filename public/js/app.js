@@ -6,13 +6,14 @@
    - Rellena el laboratorio de IA (prompt exacto + respuesta cruda).
    ===================================================================== */
 
-import { Renderizador, MAPA } from './render.js';
+import { Renderizador } from './render.js';
 import * as S from './sprites.js';
 
 const $ = (id) => document.getElementById(id);
 
 const lienzo = $('oficina');
-const renderizador = new Renderizador(lienzo);
+/** Se crea al arrancar: necesita el config para saber donde va cada habitacion. */
+let renderizador = null;
 
 let estado = null;
 let ultimoSucesoRender = null;
@@ -238,6 +239,7 @@ function actualizarCabecera() {
   actualizarCabeceraIA();
   actualizarMedidorPrecio();
   actualizarCuentas();
+  actualizarHabitaciones();
 }
 
 function actualizarCabeceraIA() {
@@ -323,20 +325,58 @@ function actualizarCuentas() {
   const e = estado.empresa;
   const beneficio = e.ingresoPorDia - e.costePorDia;
   const filas = [
-    ['Nivel de oficina', e.nivelNombre],
+    ['Habitaciones', `${e.habitaciones.length} de 6`],
+    ['Escritorios', `${e.empleados} ocupados de ${e.escritorios}`],
+    ['Clientes potenciales', '×' + e.multiplicadorClientes.toFixed(2)],
     ['Ingresos / día (estimado)', dinero(e.ingresoPorDia), e.ingresoPorDia > 0 ? 'bien' : ''],
     ['Costes / día (nóminas + alquiler)', '−' + dinero(e.costePorDia), 'mal'],
     ['Beneficio / día', (beneficio >= 0 ? '+' : '') + dinero(beneficio), beneficio >= 0 ? 'bien' : 'mal'],
     ['Alquiler diario', dinero(e.alquilerPorDia)],
     ['Cafetera', e.tieneCafetera ? 'sí ☕' : 'no'],
-    ['Empleados activos', String(estado.agentes.filter((a) => !a.dimitido).length) + ' / ' + e.maxEmpleados]
+    ['Antivirus', e.tieneAntivirus ? 'instalado 🛡️' : 'no']
   ];
-  if (e.siguienteNivel) filas.push(['Siguiente mejora', `${e.siguienteNivel.nombre} · ${dinero(e.siguienteNivel.coste)}`]);
 
   $('cuentas').innerHTML = filas
     .map(([k, v, clase]) => `<div class="cuenta-fila"><span class="k">${k}</span><span class="v ${clase || ''}">${v}</span></div>`)
     .join('');
 }
+
+/* ------------------------------------------------------- habitaciones */
+
+function actualizarHabitaciones() {
+  const contenedor = $('habitaciones');
+  if (!contenedor || !estado) return;
+
+  const e = estado.empresa;
+  const todas = (configLocal && configLocal.habitaciones) || [];
+  const compradas = e.habitaciones || [];
+
+  contenedor.innerHTML = todas
+    .map((h) => {
+      const tiene = compradas.includes(h.id);
+      if (tiene) {
+        return `<div class="sala comprada">
+          <div class="sala-cab"><strong>${escapar(h.nombre)}</strong><span class="insignia ok">en uso</span></div>
+          <div class="sala-aporta">${escapar(h.aporta)}</div>
+        </div>`;
+      }
+      const puede = e.dinero >= h.coste;
+      return `<div class="sala">
+        <div class="sala-cab"><strong>${escapar(h.nombre)}</strong><span class="insignia">${dinero(h.coste)}</span></div>
+        <div class="sala-aporta">${escapar(h.lema)}<br><em>${escapar(h.aporta)}</em></div>
+        <button class="btn ${puede ? 'bonito' : ''}" data-comprar-sala="${h.id}" ${puede ? '' : 'disabled'}>
+          ${puede ? 'Comprar ' + escapar(h.nombre) : 'Te faltan ' + dinero(h.coste - e.dinero)}
+        </button>
+      </div>`;
+    })
+    .join('');
+}
+
+document.addEventListener('click', (ev) => {
+  const boton = ev.target.closest('[data-comprar-sala]');
+  if (!boton) return;
+  enviarDios('comprar_habitacion', { habitacionId: boton.dataset.comprarSala });
+});
 
 /* --------------------------------------------------------- panel activo */
 
@@ -806,7 +846,7 @@ botonZoom.addEventListener('click', () => {
 
 /** Deja al empleado elegido en el centro de la vista. */
 function centrarEnEmpleado(id) {
-  if (!cajaLienzo.classList.contains('zoom') || !estado) return;
+  if (!renderizador || !cajaLienzo.classList.contains('zoom') || !estado) return;
   const v = renderizador.visual.get(id);
   if (!v) return;
   const rect = lienzo.getBoundingClientRect();
@@ -818,8 +858,8 @@ function centrarEnEmpleado(id) {
 /* ------------------------------------------------- clic en un personaje */
 
 lienzo.addEventListener('click', (ev) => {
+  if (!renderizador || !estado) return;
   const rect = lienzo.getBoundingClientRect();
-  const escalaX = (Renderizador.prototype ? 1 : 1);
   // Convertir coordenadas de pantalla a coordenadas de mundo del canvas.
   const x = (ev.clientX - rect.left) / rect.width * (lienzo.width / 2);
   const y = (ev.clientY - rect.top) / rect.height * (lienzo.height / 2);
@@ -858,7 +898,7 @@ let ultimo = performance.now();
 function bucle(ahora) {
   const dt = Math.min(100, ahora - ultimo);
   ultimo = ahora;
-  if (estado) {
+  if (estado && renderizador) {
     renderizador.dibujar(estado, dt);
   }
   requestAnimationFrame(bucle);
@@ -867,6 +907,17 @@ function bucle(ahora) {
 /* ------------------------------------------------------------ arranque */
 
 async function iniciar() {
+  // El config hace falta SIEMPRE, tambien con servidor: el renderizador
+  // necesita saber donde esta cada habitacion del plano.
+  try {
+    const res = await fetch('config.json');
+    configLocal = await res.json();
+  } catch (e) {
+    brindis('No he podido leer config.json: ' + e.message, true);
+  }
+
+  renderizador = new Renderizador(lienzo, configLocal);
+
   if (MODO_LOCAL) {
     await iniciarLocal();
   } else {
@@ -901,15 +952,21 @@ async function iniciarLocal() {
       import('./motor/cerebro-simulado.js')
     ]);
 
-    const res = await fetch('config.json');
-    configLocal = await res.json();
-
+    // El config ya se ha leido en iniciar().
     cerebroLocal = new CerebroSimulado();
     mundoLocal = new Mundo(configLocal, cerebroLocal);
     mundoLocal.iniciar();
 
     estado = mundoLocal.snapshot();
     ajustarInterfazLocal();
+
+    // Gancho de depuracion: permite trastear la partida desde la consola del
+    // navegador (o desde las pruebas automaticas). No afecta al juego.
+    window.__pixelsoft = {
+      mundo: () => mundoLocal,
+      cerebro: () => cerebroLocal,
+      estado: () => estado
+    };
 
     actualizarCabecera();
     actualizarRegistro();

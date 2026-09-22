@@ -39,7 +39,10 @@ class Mundo {
     this.cfg = config;
     this.cerebro = cerebro;
     this.consumo = config.consumo || {};
-    this.niveles = config.niveles || [{ id: 'garaje', nombre: 'Garaje', coste: 0, maxEmpleados: 3, multiplicadorClientes: 1 }];
+    /** Las habitaciones que se pueden comprar. La primera es gratis. */
+    this.habitaciones = config.habitaciones || [
+      { id: 'trabajo', nombre: 'Zona de trabajo', coste: 0, escritorios: 3 }
+    ];
 
     this.oyentes = new Set();
     this.temporizador = null;
@@ -70,7 +73,8 @@ class Mundo {
       clientes: j.clientesIniciales,
       reputacion: j.reputacionInicial,
       calidad: j.calidadInicial,
-      indiceNivel: 0,
+      /** Habitaciones desbloqueadas. Se empieza con la zona de trabajo. */
+      habitaciones: [this.habitaciones[0].id],
       alquilerPorDia: j.alquilerPorDia,
       salarioPorDia: j.salarioPorDia,
       ingresoUltimaHora: 0,
@@ -152,7 +156,9 @@ class Mundo {
     if (!sanos.length) return;
 
     const antivirus = this.empresa.tieneAntivirus ? 0.3 : 1;
-    const probabilidad = 0.014 * infectados.length * antivirus;
+    // Con sala de servidores todo esta mejor montado y el bicho corre menos.
+    const salaServidores = this.empresa.habitaciones.includes('servidores') ? 0.45 : 1;
+    const probabilidad = 0.014 * infectados.length * antivirus * salaServidores;
     if (Math.random() > probabilidad) return;
 
     // Cuanta mejor hardware, mas dificil que entre.
@@ -170,6 +176,49 @@ class Mundo {
 
   get laboral() {
     return this.hora >= 9 && this.hora < this.cfg.juego.horaFinTrabajo;
+  }
+
+  /* -------------------------------------------------------- habitaciones */
+
+  /** Definicion de una habitacion por su id. */
+  habitacion(id) {
+    return this.habitaciones.find((h) => h.id === id) || null;
+  }
+
+  /** Cuantas habitaciones lleva compradas la empresa. */
+  get numHabitaciones() {
+    return this.empresa.habitaciones.length;
+  }
+
+  /** Cuantos escritorios hay disponibles ahora mismo. */
+  get escritoriosDisponibles() {
+    return this.empresa.habitaciones.reduce((total, id) => {
+      const h = this.habitacion(id);
+      return total + (h && h.escritorios ? h.escritorios : 0);
+    }, 0);
+  }
+
+  /**
+   * Cuanta mas oficina, mas clientes potenciales. Premia ampliar en vez de
+   * limitarse a exprimir el precio.
+   */
+  get multiplicadorClientes() {
+    return 1 + 0.13 * Math.max(0, this.numHabitaciones - 1);
+  }
+
+  /** Con cocina aguantan mejor la jornada sin desplomarse. */
+  get gastoEnergia() {
+    return this.empresa.habitaciones.includes('cocina') ? 0.74 : 1;
+  }
+
+  /** La sala de reuniones hace que el producto mejore mas rapido. */
+  get bonusCalidad() {
+    return this.empresa.habitaciones.includes('reuniones') ? 1.35 : 1;
+  }
+
+  /** Las habitaciones que aun quedan por comprar. */
+  habitacionesDisponibles() {
+    return this.habitaciones.filter((h) => !this.empresa.habitaciones.includes(h.id));
   }
 
   /**
@@ -254,10 +303,12 @@ class Mundo {
       }
 
       if (!this.laboral) {
-        // Fuera de horario: descansan.
+        // Fuera de horario: descansan. Con sala de descanso se recuperan
+        // muchisimo mejor, que es justo para lo que se compra.
+        const comodo = this.empresa.habitaciones.includes('descanso') ? 1.9 : 1;
         a.estado = 'descansando';
-        a.energia = limitar(a.energia + 3 + impulsoMoral, 0, 100);
-        a.moral = limitar(a.moral + 0.15 * impulsoMoral, 0, 100);
+        a.energia = limitar(a.energia + 3 * comodo + impulsoMoral, 0, 100);
+        a.moral = limitar(a.moral + 0.15 * impulsoMoral * comodo, 0, 100);
         continue;
       }
 
@@ -281,7 +332,7 @@ class Mundo {
       const factorHardware = (NIVELES_HARDWARE[(a.ordenador.nivel || 1) - 1] || { bonus: 1 }).bonus;
       const rinde = (a.habilidad / 50) * (a.energia / 100) * (a.ordenador.salud / 100) * factorVirus * factorHardware;
 
-      a.energia = limitar(a.energia - 1.4 + impulsoMoral * 0.5, 0, 100);
+      a.energia = limitar(a.energia - 1.4 * this.gastoEnergia + impulsoMoral * 0.5, 0, 100);
       a.habilidad = limitar(a.habilidad + 0.03 * (a.energia / 100), 0, 100);
       a.moral = limitar(a.moral - 0.05 - Math.max(0, 30 - a.energia) * 0.01, 0, 100);
 
@@ -295,7 +346,7 @@ class Mundo {
       }
 
       if (a.estado === 'trabajando') {
-        e.calidad = limitar(e.calidad + 0.045 * rinde, 0, 100);
+        e.calidad = limitar(e.calidad + 0.045 * rinde * this.bonusCalidad, 0, 100);
       }
 
       a._rinde = rinde;
@@ -318,7 +369,7 @@ class Mundo {
     const ratio = e.precio / Math.max(1, precioBase);
     const factorPrecio = limitar(1 - (ratio - 1) * 0.6, 0.15, 1.35);
 
-    const nivel = this.niveles[e.indiceNivel];
+    const nivel = { multiplicadorClientes: this.multiplicadorClientes };
     const objetivo = (6 + e.reputacion * 0.25) * factorPrecio * (0.5 + e.calidad / 100) * nivel.multiplicadorClientes;
     e.clientes += (objetivo - e.clientes) * 0.05;
     e.clientes = Math.max(0, e.clientes);
@@ -755,12 +806,13 @@ class Mundo {
       }
 
       case 'contratar': {
-        const nivel = this.niveles[e.indiceNivel];
         const vivos = this.agentes.filter((a) => !a.dimitido);
-        if (vivos.length >= nivel.maxEmpleados) {
+        const mesas = this.escritoriosDisponibles;
+
+        if (vivos.length >= mesas) {
           return {
             ok: false,
-            mensaje: `En ${nivel.nombre} solo caben ${nivel.maxEmpleados} empleados. Amplia la oficina para meter a mas.`
+            mensaje: `Solo hay ${mesas} escritorios y ya estan todos ocupados. Compra una habitacion con mas mesas.`
           };
         }
 
@@ -893,19 +945,38 @@ class Mundo {
         return { ok: true, mensaje: texto };
       }
 
-      case 'mejorar_oficina': {
-        const siguiente = this.niveles[e.indiceNivel + 1];
-        if (!siguiente) return { ok: false, mensaje: 'La oficina ya esta al maximo.' };
-        if (e.dinero < siguiente.coste) {
-          return { ok: false, mensaje: `Ampliar a ${siguiente.nombre} cuesta ${siguiente.coste} EUR y no llega la caja.` };
+      case 'comprar_habitacion': {
+        const disponibles = this.habitacionesDisponibles();
+        if (!disponibles.length) return { ok: false, mensaje: 'La oficina ya esta completa. No queda sitio.' };
+
+        // Sin id, se compra la mas barata que quede (es lo que hace el boton
+        // generico de "ampliar la oficina").
+        const h = carga.habitacionId
+          ? this.habitacion(carga.habitacionId)
+          : disponibles.slice().sort((a, b) => a.coste - b.coste)[0];
+
+        if (!h) return { ok: false, mensaje: 'Esa habitacion no existe.' };
+        if (e.habitaciones.includes(h.id)) return { ok: false, mensaje: `Ya tienes ${h.nombre}.` };
+        if (e.dinero < h.coste) {
+          return { ok: false, mensaje: `${h.nombre} cuesta ${h.coste} EUR y no llega la caja.` };
         }
-        e.dinero -= siguiente.coste;
-        e.indiceNivel++;
-        const texto = `La empresa se muda: ahora es ${siguiente.nombre}. Caben hasta ${siguiente.maxEmpleados} empleados.`;
-        this.registrar('dios', `${texto} (-${siguiente.coste} EUR)`);
+
+        e.dinero -= h.coste;
+        e.habitaciones.push(h.id);
+        // Emocion y moral: estrenar sitio sienta de maravilla.
+        for (const a of this.agentes) {
+          if (!a.dimitido) a.moral = limitar(a.moral + 11, 0, 100);
+        }
+
+        const texto = `La empresa estrena habitacion: ${h.nombre}. ${h.aporta}.`;
+        this.registrar('dios', `${texto} (-${h.coste} EUR)`);
         this.encolarReflexionATodos(texto);
         return { ok: true, mensaje: texto };
       }
+
+      // Alias viejo, por si algo llama al poder anterior.
+      case 'mejorar_oficina':
+        return this.dios('comprar_habitacion', {});
 
       default:
         return { ok: false, mensaje: `Poder desconocido: ${accion}` };
@@ -918,8 +989,7 @@ class Mundo {
   snapshot() {
     const e = this.empresa;
     const precioBase = 18 + e.calidad * 0.35;
-    const nivel = this.niveles[e.indiceNivel];
-    const siguiente = this.niveles[e.indiceNivel + 1] || null;
+    const vivos = this.agentes.filter((a) => !a.dimitido).length;
 
     return {
       dia: this.dia,
@@ -932,12 +1002,18 @@ class Mundo {
         ...e,
         precioBase,
         ratioPrecio: e.precio / Math.max(1, precioBase),
-        nivelNombre: nivel.nombre,
-        nivelId: nivel.id,
-        maxEmpleados: nivel.maxEmpleados,
-        siguienteNivel: siguiente ? { nombre: siguiente.nombre, coste: siguiente.coste } : null,
+        multiplicadorClientes: this.multiplicadorClientes,
+        escritorios: this.escritoriosDisponibles,
+        empleados: vivos,
+        habitacionesDisponibles: this.habitacionesDisponibles().map((h) => ({
+          id: h.id,
+          nombre: h.nombre,
+          coste: h.coste,
+          lema: h.lema,
+          aporta: h.aporta
+        })),
         ingresoPorDia: Math.round((e.ingresoHoraMedio || 0) * 9),
-        costePorDia: this.agentes.filter((a) => !a.dimitido).length * e.salarioPorDia + e.alquilerPorDia,
+        costePorDia: vivos * e.salarioPorDia + e.alquilerPorDia,
         historial: e.historial.slice(-40)
       },
       agentes: this.agentes.map((a) => ({

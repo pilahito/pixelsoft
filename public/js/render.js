@@ -1,45 +1,91 @@
 /* =====================================================================
    RENDER  ·  Pinta la oficina en un canvas 2D.
-   Mantiene su propio estado visual (posiciones interpoladas, frames de
-   animacion) y lo actualiza en cada frame. El estado del JUEGO llega del
-   servidor por SSE; aqui solo se le da forma.
+
+   La oficina son seis HABITACIONES en una rejilla de 3x2. Al principio solo
+   esta comprada la zona de trabajo; las demas salen a oscuras con un
+   candado, y se van abriendo cuando el jefe las compra.
+
+   No hay muros entre habitaciones a proposito: cada una tiene su suelo y su
+   mobiliario, y entre ellas hay una franja de pasillo. Asi los personajes
+   pueden caminar de una a otra sin necesidad de calcular rutas (que seria
+   mucho mas complicado y no aporta nada al juego).
 
    Clave del dibujo: cada cosa tiene una PROFUNDIDAD (su borde inferior).
    Se ordenan todas por profundidad y se pintan de atras hacia delante.
-   Asi el escritorio tapa las piernas de quien esta sentado, y quien camina
-   por delante se dibuja despues. Sin esto, los personajes "flotan".
    ===================================================================== */
 
 import * as S from './sprites.js';
 
-export const COLS = 22;
-export const FILAS = 14;
+export const COLS = 30;
+export const FILAS = 20;
 const ESCALA = 2;
+const LADO = 10;          // cada habitacion mide 10x10 casillas
 
-/** Distribucion de la oficina, en casillas. */
-export const MAPA = {
-  /** Puesto de trabajo: el monitor va en (mx,my) y la mesa ocupa 3x1 debajo. */
-  escritorios: [
-    { mx: 4, my: 2 },
-    { mx: 4, my: 5 },
-    { mx: 4, my: 8 },
-    { mx: 9, my: 2 },
-    { mx: 9, my: 5 },
-    { mx: 9, my: 8 }
-  ],
-  sitios: {
-    cafetera: { x: 17.5, y: 4 },
-    sofa: { x: 17, y: 8 },
-    planta: { x: 2.5, y: 12 },
-    pizarra: { x: 15.5, y: 12 },
-    pasillo: { x: 12.5, y: 8 }
+/** Suelo de cada habitacion. Cada una tiene su tono para distinguirse. */
+const SUELO_HABITACION = {
+  trabajo: ['#4a5a72', '#455468'],
+  descanso: ['#5c4a72', '#554468'],
+  servidores: ['#3e4a58', '#394450'],
+  ampliacion: ['#4a5a72', '#455468'],
+  reuniones: ['#5a5240', '#544c3b'],
+  cocina: ['#5c5a48', '#555344']
+};
+
+/** Puestos de trabajo, en orden. Los tres primeros son de la zona de trabajo
+ *  y los tres siguientes del ala ampliada. */
+const ESCRITORIOS = [
+  { mx: 3, my: 2 }, { mx: 6, my: 2 }, { mx: 3, my: 5 },
+  { mx: 3, my: 12 }, { mx: 6, my: 12 }, { mx: 3, my: 15 }
+];
+
+/** A que habitacion pertenece cada escritorio. */
+const HABITACION_ESCRITORIO = ['trabajo', 'trabajo', 'trabajo', 'ampliacion', 'ampliacion', 'ampliacion'];
+
+/** Donde se puede ir un empleado. `sala` = habitacion que tiene que estar comprada. */
+const SITIOS = {
+  cafetera: { x: 16.5, y: 3, sala: 'descanso' },
+  sofa: { x: 13.5, y: 5, sala: 'descanso' },
+  fuente: { x: 12.5, y: 2, sala: 'descanso' },
+  planta: { x: 11.5, y: 8, sala: 'descanso' },
+  pizarra: { x: 14.5, y: 15, sala: 'reuniones' },
+  nevera: { x: 22.5, y: 12, sala: 'cocina' },
+  rack: { x: 24.5, y: 3, sala: 'servidores' },
+  pasillo: { x: 14.5, y: 9.5, sala: null }
+};
+
+/** Que mobiliario se dibuja en cada habitacion. */
+const MOBILIARIO = {
+  descanso: (ctx, t) => {
+    S.dibujarAlfombra(ctx, 12, 4, 5, 3);
+    S.dibujarSofa(ctx, 12, 2);
+    S.dibujarCafetera(ctx, 16, 2, true);
+    S.dibujarFuente(ctx, 11, 5);
+    S.dibujarPlanta(ctx, 10, 8, 0);
+    S.dibujarPlanta(ctx, 18, 8, 2);
+    S.dibujarEstanteria(ctx, 18, 1);
   },
-  ventanas: [5, 9, 13, 17],
-  lamparas: [4, 10, 16],
-  estanteria: { x: 20, y: 2 },
-  alfombra: { x: 12, y: 3 },
-  fuente: { x: 13, y: 11 },
-  reloj: { x: 19, y: 0 }
+  servidores: (ctx, t) => {
+    S.dibujarRack(ctx, 22, 2, t);
+    S.dibujarRack(ctx, 24, 2, t + 400);
+    S.dibujarRack(ctx, 22, 6, t + 800);
+    S.dibujarRack(ctx, 26, 5, t + 1200);
+    S.dibujarImpresora(ctx, 27, 1);
+    S.dibujarEstanteria(ctx, 20, 8);
+  },
+  reuniones: (ctx, t) => {
+    S.dibujarMesaReunion(ctx, 13, 13);
+    S.dibujarPizarra(ctx, 15, 12);
+    S.dibujarPlanta(ctx, 10, 18, 1);
+    S.dibujarPlanta(ctx, 18, 18, 3);
+  },
+  cocina: (ctx, t) => {
+    S.dibujarCocina(ctx, 22, 12);
+    S.dibujarImpresora(ctx, 26, 16);
+    S.dibujarPlanta(ctx, 20, 18, 2);
+    S.dibujarPlanta(ctx, 28, 11, 1);
+  },
+  trabajo: null,
+  ampliacion: null
 };
 
 /** Color de la pantalla segun lo que hace el empleado. */
@@ -59,15 +105,11 @@ function colorPantalla(estado) {
 
 const ENCENDIDA = ['trabajando', 'pensando', 'reparando', 'limpiando', 'bloqueado', 'holgazaneando', 'quejandose', 'ayudando'];
 
-/**
- * Que emoticono le sale por encima de la cabeza. Es lo que hace que se
- * entienda de un vistazo como esta cada uno sin leer un solo numero.
- */
+/** Que emoticono le sale por encima de la cabeza. */
 function emoteDe(agente) {
   if (agente.dimitido) return null;
   if (agente.ordenador && agente.ordenador.virus) return 'virus';
-  if (agente.estado === 'limpiando') return 'idea';
-  if (agente.estado === 'reparando') return 'idea';
+  if (agente.estado === 'limpiando' || agente.estado === 'reparando') return 'idea';
   if (agente.estado === 'descansando') return 'dormido';
   if (agente.estado === 'quejandose') return 'enfadado';
   if (agente.moral < 25) return 'enfadado';
@@ -77,51 +119,68 @@ function emoteDe(agente) {
   return null;
 }
 
-/** Donde tiene que ponerse un empleado, en pixeles de mundo (a sus pies). */
-function destinoSitio(agente, agentes) {
-  const puesto = MAPA.escritorios[agente.indiceEscritorio];
-
-  if (agente.sitio === 'companero') {
-    const otro = agentes.find((a) => a.id !== agente.id && !a.dimitido);
-    if (otro) {
-      const d = MAPA.escritorios[otro.indiceEscritorio] || MAPA.escritorios[0];
-      return { x: (d.mx + 2.6) * S.TAM, y: (d.my + 1) * S.TAM + 34, sentado: false };
-    }
-  }
-
-  if (agente.sitio === 'escritorio' && puesto) {
-    // Los pies justo por debajo del borde de la mesa: asi la mesa le tapa
-    // las piernas y parece que esta sentado, no flotando.
-    return { x: (puesto.mx + 0.5) * S.TAM, y: (puesto.my + 1) * S.TAM + 22, sentado: true };
-  }
-
-  const s = MAPA.sitios[agente.sitio] || MAPA.sitios.pasillo;
-  return { x: s.x * S.TAM, y: s.y * S.TAM, sentado: false };
-}
-
 export class Renderizador {
-  constructor(canvas) {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {object} config  El config.json, para saber donde va cada habitacion
+   */
+  constructor(canvas, config) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     canvas.width = COLS * S.TAM * ESCALA;
     canvas.height = FILAS * S.TAM * ESCALA;
     this.ctx.imageSmoothingEnabled = false;
 
+    this.habitaciones = (config && config.habitaciones) || [
+      { id: 'trabajo', nombre: 'Zona de trabajo', x: 0, y: 0, ancho: 10, alto: 10 }
+    ];
+
     this.visual = new Map();
     this.frames = new Map();
     this.t = 0;
-    this.ambiente = this._crearAmbiente();
+    this.ambiente = null;
   }
 
-  /** Suelo, paredes y decoracion fija: se pinta una vez y se reutiliza. */
+  /** Definicion de una habitacion por id. */
+  _sala(id) {
+    return this.habitaciones.find((h) => h.id === id) || null;
+  }
+
+  /** Dibuja el suelo de una habitacion en el lienzo de ambiente. */
+  _pintarSala(ctx, sala) {
+    const tonos = SUELO_HABITACION[sala.id] || SUELO_HABITACION.trabajo;
+    for (let y = sala.y; y < sala.y + sala.alto; y++) {
+      for (let x = sala.x; x < sala.x + sala.ancho; x++) {
+        const claro = (x + y) % 2 === 0;
+        S.dibujarSuelo(ctx, x, y, x * 31 + y * 17, claro ? tonos[0] : tonos[1]);
+      }
+    }
+  }
+
+  /** El suelo y los pasillos: se pinta una vez y se reutiliza. */
   _crearAmbiente() {
+    if (this.ambiente) return this.ambiente;
+
     const c = S.crearLienzo(COLS * S.TAM, FILAS * S.TAM);
     const ctx = c.getContext('2d');
     ctx.imageSmoothingEnabled = false;
 
-    for (let y = 1; y <= FILAS - 2; y++) {
-      for (let x = 1; x <= COLS - 2; x++) S.dibujarSuelo(ctx, x, y, x * 31 + y * 17);
+    // Pasillo de fondo en toda la oficina
+    for (let y = 0; y < FILAS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        S.dibujarSuelo(ctx, x, y, x * 31 + y * 17, '#3a4254');
+      }
     }
+
+    // Suelo propio de cada habitacion
+    for (const sala of this.habitaciones) this._pintarSala(ctx, sala);
+
+    // Franjas de pasillo entre habitaciones (separacion visual, no muros)
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let col = 1; col * LADO < COLS; col++) ctx.fillRect(col * LADO * S.TAM - 1, 0, 2, FILAS * S.TAM);
+    for (let fila = 1; fila * LADO < FILAS; fila++) ctx.fillRect(0, fila * LADO * S.TAM - 1, COLS * S.TAM, 2);
+
+    // Muros exteriores
     for (let x = 0; x < COLS; x++) {
       S.dibujarPared(ctx, x, 0, x === 0 || x === COLS - 1);
       S.dibujarPared(ctx, x, FILAS - 1, x === 0 || x === COLS - 1);
@@ -131,15 +190,17 @@ export class Renderizador {
       S.dibujarPared(ctx, COLS - 1, y, false);
     }
 
-    S.dibujarAlfombra(ctx, MAPA.alfombra.x, MAPA.alfombra.y, 4, 3);
-    for (const vx of MAPA.ventanas) S.dibujarVentana(ctx, vx, 0);
-    S.dibujarPuerta(ctx, 10, FILAS - 1);
+    // Ventanas y puerta
+    for (const vx of [4, 8, 14, 18, 24, 28]) S.dibujarVentana(ctx, vx, 0);
+    S.dibujarPuerta(ctx, 14, FILAS - 1);
+
+    this.ambiente = c;
     return c;
   }
 
-  _visualDe(agente) {
+  _visualDe(agente, habitaciones) {
     if (!this.visual.has(agente.id)) {
-      const d = destinoSitio(agente, [agente]);
+      const d = this._destino(agente, [agente], habitaciones);
       this.visual.set(agente.id, {
         x: d.x, y: d.y, dir: 1, caminando: false, sentado: false, frame: 0, tFrame: 0
       });
@@ -147,22 +208,56 @@ export class Renderizador {
     return this.visual.get(agente.id);
   }
 
+  /** Donde tiene que ponerse un empleado, en pixeles de mundo (a sus pies). */
+  _destino(agente, agentes, habitaciones) {
+    const puesto = ESCRITORIOS[agente.indiceEscritorio];
+    const suSala = HABITACION_ESCRITORIO[agente.indiceEscritorio];
+
+    // Si su escritorio esta en una sala sin comprar, se queda en el pasillo.
+    if (puesto && (!suSala || habitaciones.includes(suSala))) {
+      if (agente.sitio === 'escritorio') {
+        return { x: (puesto.mx + 0.5) * S.TAM, y: (puesto.my + 1) * S.TAM + 22, sentado: true };
+      }
+    }
+
+    if (agente.sitio === 'companero') {
+      const otro = agentes.find((a) => a.id !== agente.id && !a.dimitido);
+      if (otro) {
+        const d = ESCRITORIOS[otro.indiceEscritorio] || ESCRITORIOS[0];
+        return { x: (d.mx + 2.8) * S.TAM, y: (d.my + 1) * S.TAM + 34, sentado: false };
+      }
+    }
+
+    const s = SITIOS[agente.sitio];
+    // Si el sitio esta en una sala que no esta comprada, se va al pasillo.
+    if (s && (!s.sala || habitaciones.includes(s.sala))) {
+      return { x: s.x * S.TAM, y: s.y * S.TAM, sentado: false };
+    }
+
+    // Ultimo recurso: su mesa si puede, y si no el pasillo.
+    if (puesto && (!suSala || habitaciones.includes(suSala))) {
+      return { x: (puesto.mx + 0.5) * S.TAM, y: (puesto.my + 1) * S.TAM + 22, sentado: true };
+    }
+    return { x: SITIOS.pasillo.x * S.TAM, y: SITIOS.pasillo.y * S.TAM, sentado: false };
+  }
+
   dibujar(estado, dt) {
     this.t += dt;
     const ctx = this.ctx;
     const apagon = !!(estado.empresa && estado.empresa.apagon);
+    const salas = (estado.empresa && estado.empresa.habitaciones) || ['trabajo'];
 
     // ------------------------------------------------ 1. animaciones
     for (const agente of estado.agentes) {
-      const v = this._visualDe(agente);
-      const destino = destinoSitio(agente, estado.agentes);
+      const v = this._visualDe(agente, salas);
+      const destino = this._destino(agente, estado.agentes, salas);
 
       const dx = destino.x - v.x;
       const dy = destino.y - v.y;
       const dist = Math.hypot(dx, dy);
 
       if (dist > 1.5) {
-        const paso = Math.min(46 * (dt / 1000), dist);
+        const paso = Math.min(52 * (dt / 1000), dist);
         v.x += (dx / dist) * paso;
         v.y += (dy / dist) * paso;
         v.caminando = true;
@@ -192,40 +287,31 @@ export class Renderizador {
     ctx.setTransform(ESCALA, 0, 0, ESCALA, 0, 0);
     ctx.imageSmoothingEnabled = false;
 
-    ctx.drawImage(this.ambiente, 0, 0);
-    for (const lx of MAPA.lamparas) S.dibujarLampara(ctx, lx, 1);
-    S.dibujarReloj(ctx, MAPA.reloj.x, MAPA.reloj.y, estado.hora);
+    ctx.drawImage(this._crearAmbiente(), 0, 0);
 
     // ------------------------------------------------ 3. capa ordenada
-    //
-    // Cada elemento aporta su profundidad (el borde inferior). Se ordena de
-    // menor a mayor y se pinta: lo mas "lejano" primero.
-    //
     const capa = [];
 
-    // Decoracion con su profundidad
-    capa.push({ z: 3 * S.TAM + 30, f: () => S.dibujarEstanteria(ctx, MAPA.estanteria.x, MAPA.estanteria.y) });
-    capa.push({ z: 11 * S.TAM + 12, f: () => S.dibujarPlanta(ctx, 1, 11, 0) });
-    capa.push({ z: 12 * S.TAM + 12, f: () => S.dibujarPlanta(ctx, 20, 12, 2) });
-    capa.push({ z: 11 * S.TAM + 16, f: () => S.dibujarPizarra(ctx, MAPA.sitios.pizarra.x - 1, 11) });
-    capa.push({ z: 11 * S.TAM + 30, f: () => S.dibujarFuente(ctx, MAPA.fuente.x, MAPA.fuente.y) });
-    capa.push({ z: 8 * S.TAM + 36, f: () => S.dibujarRack(ctx, 12, 8, this.t) });
-    capa.push({ z: 8 * S.TAM + 30, f: () => S.dibujarImpresora(ctx, 15, 8) });
-    capa.push({ z: 5 * S.TAM + 30, f: () => S.dibujarCafetera(ctx, 17, 3, !!(estado.empresa && estado.empresa.tieneCafetera)) });
-    capa.push({ z: 7 * S.TAM + 30, f: () => S.dibujarSofa(ctx, 16, 6) });
+    for (const sala of this.habitaciones) {
+      if (!salas.includes(sala.id)) continue;      // sin comprar: no hay muebles
+      const pintar = MOBILIARIO[sala.id];
+      if (!pintar) continue;
+      const z = (sala.y + sala.alto) * S.TAM;
+      capa.push({ z, f: () => pintar(ctx, this.t) });
+    }
 
-    // Puestos de trabajo: monitor -> persona sentada -> mesa (la mesa tapa las piernas)
-    //
-    // OJO: se empareja por `indiceEscritorio`, NO por la posicion en el array.
-    // Si no, al despedir a alguien y contratar a otro, se liarian los puestos.
+    // Escritorios: monitor -> persona sentada -> mesa (la mesa tapa las piernas)
     const porEscritorio = new Map();
     for (const a of estado.agentes) {
       if (!a.dimitido && a.indiceEscritorio != null) porEscritorio.set(a.indiceEscritorio, a);
     }
 
-    MAPA.escritorios.forEach((d, i) => {
+    ESCRITORIOS.forEach((d, i) => {
+      const sala = HABITACION_ESCRITORIO[i];
+      if (!salas.includes(sala)) return;           // su sala no esta comprada
+
       const agente = porEscritorio.get(i) || null;
-      const v = agente ? this._visualDe(agente) : null;
+      const v = agente ? this._visualDe(agente, salas) : null;
       const activo = agente && !agente.dimitido;
       const estadoPinta = activo ? (agente.pensando ? 'pensando' : agente.estado) : null;
       const infectado = !!(activo && agente.ordenador && agente.ordenador.virus);
@@ -250,36 +336,82 @@ export class Renderizador {
     // Empleados de pie o andando
     for (const agente of estado.agentes) {
       if (agente.dimitido) continue;
-      const v = this._visualDe(agente);
-      if (v.sentado) continue;                 // ya se ha pintado con su mesa
+      const v = this._visualDe(agente, salas);
+      if (v.sentado) continue;
       capa.push({ z: v.y, f: () => this._dibujarAgente(ctx, agente, v) });
     }
 
     capa.sort((a, b) => a.z - b.z);
     for (const item of capa) item.f();
 
-    // ------------------------------------------------ 4. apagon
+    // ------------------------------------------------ 4. habitaciones cerradas
+    for (const sala of this.habitaciones) {
+      if (salas.includes(sala.id)) continue;
+      this._dibujarSalaCerrada(ctx, sala, estado);
+    }
+
+    // ------------------------------------------------ 5. apagon
     if (apagon) {
       ctx.fillStyle = 'rgba(6,8,16,0.66)';
       ctx.fillRect(0, 0, COLS * S.TAM, FILAS * S.TAM);
     }
 
-    // ------------------------------------------------ 5. interfaz
+    // ------------------------------------------------ 6. interfaz
     for (const agente of estado.agentes) {
       if (agente.dimitido) continue;
-      this._dibujarEtiqueta(ctx, agente, this._visualDe(agente));
+      this._dibujarEtiqueta(ctx, agente, this._visualDe(agente, salas));
     }
     for (const agente of estado.agentes) {
       if (agente.dimitido || !agente.bocadillo) continue;
-      this._dibujarBocadillo(ctx, agente, this._visualDe(agente));
+      this._dibujarBocadillo(ctx, agente, this._visualDe(agente, salas));
     }
-    // Los emoticonos van los ultimos, por encima de todo.
     for (const agente of estado.agentes) {
       const tipo = emoteDe(agente);
       if (!tipo) continue;
-      const v = this._visualDe(agente);
+      const v = this._visualDe(agente, salas);
       S.dibujarEmote(ctx, v.x + 13, v.y - S.ALTO_PJ * 2 - 24, tipo, this.t);
     }
+  }
+
+  /** Una habitacion sin comprar: a oscuras, con candado y precio. */
+  _dibujarSalaCerrada(ctx, sala, estado) {
+    const x = sala.x * S.TAM;
+    const y = sala.y * S.TAM;
+    const w = sala.ancho * S.TAM;
+    const h = sala.alto * S.TAM;
+
+    ctx.fillStyle = 'rgba(8,10,18,0.82)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(120,130,160,0.35)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.strokeRect(x + 3, y + 3, w - 6, h - 6);
+    ctx.setLineDash([]);
+
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+
+    // Candado
+    ctx.fillStyle = '#8b98b0';
+    ctx.fillRect(cx - 9, cy - 16, 18, 14);
+    ctx.fillStyle = '#6a7688';
+    ctx.fillRect(cx - 5, cy - 24, 10, 10);
+    ctx.fillStyle = '#8b98b0';
+    ctx.fillRect(cx - 7, cy - 22, 14, 8);
+    ctx.fillStyle = '#1a1f2b';
+    ctx.fillRect(cx - 2, cy - 12, 4, 6);
+
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 11px ui-monospace, monospace';
+    ctx.fillStyle = '#dbe3f0';
+    ctx.fillText(sala.nombre, cx, cy + 14);
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillStyle = '#9fd8f5';
+    ctx.fillText(sala.coste + ' €', cx, cy + 28);
+    ctx.font = '8px ui-monospace, monospace';
+    ctx.fillStyle = '#6f7d95';
+    ctx.fillText(sala.aporta || '', cx, cy + 42);
+    ctx.textAlign = 'center';
   }
 
   _dibujarAgente(ctx, agente, v) {
@@ -299,7 +431,7 @@ export class Renderizador {
     const ancho = S.ANCHO_PJ * 2;
     const alto = S.ALTO_PJ * 2;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath();
     ctx.ellipse(v.x, v.y - 1, 9, 3.5, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -328,8 +460,6 @@ export class Renderizador {
   }
 
   _dibujarEtiqueta(ctx, agente, v) {
-    // Al que esta sentado le subimos mas la etiqueta: si no, tapa el monitor,
-    // que es donde se ve lo que esta haciendo.
     const hueco = v.sentado ? 36 : 16;
     const y = v.y - S.ALTO_PJ * 2 - hueco;
 
@@ -354,6 +484,13 @@ export class Renderizador {
 
     ctx.fillStyle = '#4a9ede';
     ctx.fillRect(bx, by + 4, (ancho * agente.energia) / 100, 3);
+
+    // Nivel de ordenador: una rayita por nivel, bien visible
+    const nivel = (agente.ordenador && agente.ordenador.nivel) || 1;
+    for (let i = 0; i < nivel; i++) {
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillRect(bx + i * 5, by + 9, 3, 2);
+    }
 
     if (agente.pensando) {
       const n = Math.floor(this.t / 260) % 4;

@@ -36,11 +36,62 @@
     "alquilerPorDia": 15
   },
 
-  "niveles": [
-    { "id": "garaje", "nombre": "Garaje", "coste": 0, "maxEmpleados": 4, "multiplicadorClientes": 1.0 },
-    { "id": "oficina", "nombre": "Oficina", "coste": 1800, "maxEmpleados": 6, "multiplicadorClientes": 1.35 },
-    { "id": "planta", "nombre": "Planta completa", "coste": 12000, "maxEmpleados": 6, "multiplicadorClientes": 1.8 },
-    { "id": "torre", "nombre": "Torre PixelSoft", "coste": 45000, "maxEmpleados": 6, "multiplicadorClientes": 2.4 }
+  "_habitaciones": "La oficina empieza siendo una sola habitacion y va creciendo. Cada una cuesta dinero y aporta algo. x/y/ancho/alto son casillas del plano.",
+  "habitaciones": [
+    {
+      "id": "trabajo",
+      "nombre": "Zona de trabajo",
+      "coste": 0,
+      "x": 0, "y": 0, "ancho": 10, "alto": 10,
+      "escritorios": 3,
+      "lema": "El garaje donde empezo todo",
+      "aporta": "3 escritorios"
+    },
+    {
+      "id": "descanso",
+      "nombre": "Sala de descanso",
+      "coste": 700,
+      "x": 10, "y": 0, "ancho": 10, "alto": 10,
+      "escritorios": 0,
+      "lema": "Sofa, plantas y agua fresca",
+      "aporta": "Recuperan moral y energia mucho mas rapido"
+    },
+    {
+      "id": "servidores",
+      "nombre": "Sala de servidores",
+      "coste": 1600,
+      "x": 20, "y": 0, "ancho": 10, "alto": 10,
+      "escritorios": 0,
+      "lema": "Racks, backups y cables por todas partes",
+      "aporta": "Los virus se contagian la mitad de facil"
+    },
+    {
+      "id": "ampliacion",
+      "nombre": "Ala ampliada",
+      "coste": 2600,
+      "x": 0, "y": 10, "ancho": 10, "alto": 10,
+      "escritorios": 3,
+      "lema": "Tres mesas mas, con su luz y todo",
+      "aporta": "3 escritorios mas (hasta 6 empleados)"
+    },
+    {
+      "id": "reuniones",
+      "nombre": "Sala de reuniones",
+      "coste": 4200,
+      "x": 10, "y": 10, "ancho": 10, "alto": 10,
+      "escritorios": 0,
+      "lema": "Una pizarra grande y una mesa decente",
+      "aporta": "La calidad del producto sube mas rapido"
+    },
+    {
+      "id": "cocina",
+      "nombre": "Cocina",
+      "coste": 6000,
+      "x": 20, "y": 10, "ancho": 10, "alto": 10,
+      "escritorios": 0,
+      "lema": "Nevera, microondas y cafe de verdad",
+      "aporta": "Aguantan mejor la jornada sin desplomarse"
+    }
   ],
 
   "costeContratacion": 150,
