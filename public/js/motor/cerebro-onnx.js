@@ -57,6 +57,22 @@ export const MODELOS = [
 
 const estimarTokens = (texto) => Math.ceil(String(texto || '').length / 4);
 
+/**
+ * Recordatorio para los modelos pequenos.
+ *
+ * Un modelo de 0,5B se pierde con las instrucciones largas del principio: se
+ * pone a escribir prosa y se deja el JSON a medias. Repetirle al FINAL, y con
+ * un ejemplo de la forma exacta, es lo que mas mejora el resultado. Los
+ * modelos grandes no lo necesitan, pero tampoco les molesta.
+ */
+const RECORDATORIO_JSON = [
+  '',
+  '',
+  'Responde UNICAMENTE con el objeto JSON. Sin texto antes ni despues, sin markdown.',
+  'Ejemplo exacto de la forma:',
+  '{"pensamiento":"esto pienso","animo":60,"accion":"trabajar","dialogo":"esto digo","objetivo":"esto hare"}'
+].join('\n');
+
 /* --------------------------------------------------------------- cerebro */
 
 export class CerebroONNX {
@@ -148,7 +164,10 @@ export class CerebroONNX {
 
   /* --------------------------------------------------------- preparacion */
 
-  /** Mira si el movil tiene WebGPU (mucho mas rapido) o tiramos de CPU. */
+  /**
+   * Mira si el movil tiene WebGPU. De momento solo sirve para informar: la IA
+   * va siempre por CPU (ver el comentario en preparar()).
+   */
   async _detectarDispositivo() {
     try {
       if (navigator.gpu && await navigator.gpu.requestAdapter()) return 'webgpu';
@@ -172,9 +191,13 @@ export class CerebroONNX {
       this.progreso = 0;
       this._avisar();
 
-      // transformers.js se carga solo cuando hace falta: son 440 KB que no
+      // transformers.js se carga solo cuando hace falta: es 1,3 MB que no
       // queremos cargar si el jugador usa el cerebro simulado.
-      const transformers = await import(/* @vite-ignore */ RUTA_IA + 'transformers.web.min.js');
+      //
+      // Se carga el BUNDLE y no el fichero original: el original hace
+      // import("onnxruntime-web/webgpu"), un nombre "pelado" que el navegador
+      // no sabe resolver. El bundle ya lo trae todo dentro resuelto.
+      const transformers = await import(/* @vite-ignore */ RUTA_IA + 'transformers.bundle.js');
       const { pipeline, env } = transformers;
 
       // Los ficheros del modelo NO estan en el juego: se bajan de HuggingFace
@@ -193,9 +216,27 @@ export class CerebroONNX {
         env.backends.onnx.wasm.numThreads = 1;
       }
 
-      this.dispositivo = await this._detectarDispositivo();
-      // En WebGPU va bien medio precision; en CPU, cuantizado a 8 bits.
-      const dtype = this.dispositivo === 'webgpu' ? 'q4f16' : 'q8';
+      // ESTO ES IMPORTANTE: sin proxy, el modelo se ejecuta en el hilo
+      // principal y BLOQUEA la pagina entera mientras piensa. En un movil eso
+      // son 20-40 segundos con el juego congelado, sin animaciones y sin poder
+      // tocar nada. Con el proxy, la inferencia se va a un worker y el juego
+      // sigue corriendo mientras el empleado piensa.
+      env.backends.onnx.wasm.proxy = true;
+
+      this.tieneWebGPU = (await this._detectarDispositivo()) === 'webgpu';
+
+      // SIEMPRE por CPU, aunque el movil tenga WebGPU. El motivo es concreto:
+      // para usar la GPU, transformers.js hace un import() de
+      // "onnxruntime-web/webgpu", que es un nombre "pelado", y el navegador no
+      // sabe resolverlo sin un import map. Con CPU funciona en cualquier movil
+      // y no hay sorpresas.
+      //
+      // Para activar la GPU algun dia: hay que empaquetar transformers.js con
+      // esbuild (que si resuelve ese nombre) y cambiar esto a 'webgpu'.
+      this.dispositivo = 'wasm';
+
+      // En CPU, cuantizado a 8 bits: es lo que mejor va sin GPU.
+      const dtype = 'q8';
 
       this.estado = 'descargando';
       this.mensajeEstado = `Descargando ${this.modeloElegido} (${dtype})...`;
@@ -296,7 +337,7 @@ export class CerebroONNX {
 
     this._enCurso++;
     const system = systemPrompt(agente);
-    const prompt = promptReaccion(mundo, agente, (Array.isArray(sucesos) ? sucesos : [sucesos]).join(' · '));
+    const prompt = promptReaccion(mundo, agente, (Array.isArray(sucesos) ? sucesos : [sucesos]).join(' · ')) + RECORDATORIO_JSON;
 
     try {
       const { texto, ms } = await this._generar(
@@ -352,7 +393,7 @@ export class CerebroONNX {
 
     this._enCurso++;
     const system = systemPrompt(agente);
-    const prompt = promptCharla(mundo, agente, mensaje);
+    const prompt = promptCharla(mundo, agente, mensaje) + RECORDATORIO_JSON;
 
     try {
       const { texto, ms } = await this._generar(

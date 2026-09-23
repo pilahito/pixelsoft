@@ -44,7 +44,14 @@ if (!navegador) {
 }
 
 const PUERTO_CDP = 9222 + Math.floor(Math.random() * 500);
-const perfil = path.join(os.tmpdir(), 'pixelsoft-cdp-' + Date.now());
+// Perfil FIJO, no uno nuevo cada vez. Importa mucho: asi el navegador conserva
+// lo que tenga cacheado entre pruebas. Cuando el modelo de IA son 350 MB,
+// bajarlo en cada ejecucion es una tortura. Para empezar de cero:
+//   PIXELSOFT_PERFIL_LIMPIO=1 node tools/captura.js ...
+const perfil = path.join(os.tmpdir(), 'pixelsoft-cdp');
+if (process.env.PIXELSOFT_PERFIL_LIMPIO) {
+  fs.rmSync(perfil, { recursive: true, force: true });
+}
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -95,6 +102,9 @@ class Cdp {
 
   enviar(method, params = {}) {
     const id = ++this.id;
+    // 120 s y no 30: cuando el navegador esta ejecutando un modelo de IA puede
+    // tardar bastante en atender una captura de pantalla.
+    const limite = 120000;
     return new Promise((resolver, rechazar) => {
       this.pendientes.set(id, { resolver, rechazar });
       this.ws.send(JSON.stringify({ id, method, params }));
@@ -103,7 +113,7 @@ class Cdp {
           this.pendientes.delete(id);
           rechazar(new Error('Timeout en ' + method));
         }
-      }, 30000);
+      }, limite);
     });
   }
 }

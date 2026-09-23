@@ -1,125 +1,162 @@
 /**
- * Se trae las piezas necesarias para que el movil pueda ejecutar un modelo de
- * verdad sin depender del PC:
+ * Se trae las piezas para que el movil pueda ejecutar un modelo de verdad sin
+ * PC, y las deja listas en public/ia/:
  *
- *   - transformers.js  (la libreria que carga y usa el modelo)
- *   - ONNX Runtime Web (el motor que ejecuta el modelo en el navegador)
+ *   transformers.bundle.js        la libreria + ONNX Runtime, TODO en un fichero
+ *   ort-wasm-simd-threaded*.wasm  el motor compilado a WebAssembly
  *
- * Van a public/ia/, que esta en .gitignore porque son ~41 MB de binarios.
- * El script que construye el APK lo llama solo si faltan, asi que normalmente
- * no hace falta ejecutarlo a mano.
+ * ¿Por que un bundle y no los ficheros tal cual?
+ * Porque transformers.js trae un `import("onnxruntime-web/webgpu")` con un
+ * nombre "pelado", y el navegador no sabe resolver eso sin un import map.
+ * Empaquetandolo con esbuild, esos nombres se resuelven al construirlo y el
+ * navegador recibe un fichero limpio que funciona en cualquier sitio.
+ *
+ * public/ia/ esta en .gitignore (son ~45 MB). El script del APK llama a este
+ * automaticamente si faltan.
  *
  * Uso:  node tools/traer-ia.js
  *
- * El MODELO en si (~460 MB) NO se descarga aqui: eso se lo baja el movil la
- * primera vez que le des al boton, y se lo queda guardado.
+ * El MODELO en si (~350-500 MB) NO se baja aqui: eso lo hace el movil la
+ * primera vez que le das al boton, y se lo queda guardado.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, '..');
 const DESTINO = path.join(RAIZ, 'public', 'ia');
+const TEMPORAL = path.join(DESTINO, '.construir');
 
 const VERSION_TRANSFORMERS = '4.3.0';
-const VERSION_ORT = '1.31.0-dev.20260914-8d85527a0';
 
-const BASE_T = `https://registry.npmjs.org/@huggingface/transformers/-/transformers-${VERSION_TRANSFORMERS}.tgz`;
-const BASE_O = `https://registry.npmjs.org/onnxruntime-web/-/onnxruntime-web-${VERSION_ORT}.tgz`;
-
-/**
- * Cada pieza: de donde sale dentro del paquete y como se llama en public/ia/.
- * Los dos .wasm son grandes porque son el motor entero compilado a WebAssembly:
- * el normal para CPU y el "jsep" para cuando el movil tiene WebGPU.
- */
-const PIEZAS = [
-  { paquete: 'transformers', origen: 'package/dist/transformers.web.min.js', destino: 'transformers.web.min.js' },
-  { paquete: 'ort', origen: 'package/dist/ort-wasm-simd-threaded.mjs', destino: 'ort-wasm-simd-threaded.mjs' },
-  { paquete: 'ort', origen: 'package/dist/ort-wasm-simd-threaded.wasm', destino: 'ort-wasm-simd-threaded.wasm' },
-  { paquete: 'ort', origen: 'package/dist/ort-wasm-simd-threaded.jsep.mjs', destino: 'ort-wasm-simd-threaded.jsep.mjs' },
-  { paquete: 'ort', origen: 'package/dist/ort-wasm-simd-threaded.jsep.wasm', destino: 'ort-wasm-simd-threaded.jsep.wasm' }
-];
-
-/* -------------------------------------------------------------- utilidades */
-
-const kb = (n) => (n / 1024).toFixed(0) + ' KB';
 const mb = (n) => (n / 1024 / 1024).toFixed(1) + ' MB';
 
-/** Descarga una URL a un fichero, informando del progreso a saltos. */
-async function descargar(url, destino, etiqueta) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} al bajar ${etiqueta}`);
+/* ------------------------------------------------------------- esbuild */
 
-  const total = Number(res.headers.get('content-length') || 0);
-  const trozos = [];
-  let leidos = 0;
-  let ultimoAviso = -1;
+const CANDIDATOS_ESBUILD = [
+  process.env.ESBUILD,
+  path.join(process.env.USERPROFILE || '', '.lmstudio', '.internal', 'utils', 'esbuild.exe'),
+  path.join(RAIZ, 'node_modules', '.bin', 'esbuild.cmd'),
+  'esbuild'
+].filter(Boolean);
 
-  for await (const trozo of res.body) {
-    trozos.push(trozo);
-    leidos += trozo.length;
-    if (!total) continue;
-    // Solo avisamos cada 25%: si no, en una consola sin terminal esto escupe
-    // miles de lineas y no hay quien lea nada.
-    const tramo = Math.floor((leidos / total) * 4);
-    if (tramo !== ultimoAviso) {
-      ultimoAviso = tramo;
-      console.log(`    ${etiqueta} ... ${Math.min(100, tramo * 25)}%`);
-    }
+function buscarEsbuild() {
+  for (const c of CANDIDATOS_ESBUILD) {
+    try {
+      execFileSync(c, ['--version'], { stdio: 'pipe', timeout: 20000 });
+      return c;
+    } catch (_) { /* siguiente */ }
   }
-
-  fs.writeFileSync(destino, Buffer.concat(trozos));
-  return leidos;
+  return null;
 }
 
-/* -------------------------------------------------------------------- main */
+/** Ejecuta algo guardando la salida, para poder ensenarla si falla. */
+function correr(programa, args, opciones = {}) {
+  const esLote = /\.(bat|cmd)$/i.test(programa);
+  const orden = esLote ? 'cmd.exe' : programa;
+  const argumentos = esLote ? ['/c', programa, ...args] : args;
+  return execFileSync(orden, argumentos, { stdio: 'pipe', maxBuffer: 64 * 1024 * 1024, ...opciones });
+}
+
+/* ------------------------------------------------------------------ main */
 
 async function main() {
   console.log('');
   console.log('  Trayendo las piezas de IA para el movil');
   console.log('  ' + '-'.repeat(56));
-  console.log(`  transformers.js ${VERSION_TRANSFORMERS}`);
-  console.log(`  onnxruntime-web ${VERSION_ORT}`);
-  console.log('');
+
+  const esbuild = buscarEsbuild();
+  if (!esbuild) {
+    console.error('  No encuentro esbuild, y hace falta para empaquetar.');
+    console.error('  Instalalo con:  npm install -g esbuild');
+    console.error('');
+    process.exit(1);
+  }
+  console.log(`  esbuild: ${esbuild}`);
 
   fs.mkdirSync(DESTINO, { recursive: true });
+  fs.rmSync(TEMPORAL, { recursive: true, force: true });
+  fs.mkdirSync(TEMPORAL, { recursive: true });
 
-  // Cada paquete se extrae en SU PROPIA carpeta: si no, el segundo pisaria al
-  // primero, porque los dos .tgz llevan dentro una carpeta "package/".
-  const temporal = path.join(DESTINO, '.tmp');
-  fs.rmSync(temporal, { recursive: true, force: true });
-  fs.mkdirSync(temporal, { recursive: true });
-
-  const { execFileSync } = await import('node:child_process');
-
-  for (const [nombre, url] of [['transformers', BASE_T], ['ort', BASE_O]]) {
-    const suya = path.join(temporal, nombre);
-    fs.mkdirSync(suya, { recursive: true });
-    const tgz = path.join(suya, `${nombre}.tgz`);
-    const tam = await descargar(url, tgz, `paquete ${nombre}`);
-    execFileSync('tar', ['-xzf', tgz, '-C', suya], { stdio: 'pipe' });
-    fs.unlinkSync(tgz);
-    console.log(`  paquete ${nombre.padEnd(24)} ${mb(tam)}`);
-  }
-
+  // --- 1. Traer los paquetes con npm (ya resuelve las dependencias solo)
   console.log('');
-  let total = 0;
-  for (const pieza of PIEZAS) {
-    const origen = path.join(temporal, pieza.paquete, pieza.origen);
-    if (!fs.existsSync(origen)) {
-      console.error(`  FALTA ${pieza.origen} dentro del paquete ${pieza.paquete}`);
-      process.exit(1);
-    }
-    const destino = path.join(DESTINO, pieza.destino);
-    fs.copyFileSync(origen, destino);
-    const tam = fs.statSync(destino).size;
-    total += tam;
-    console.log(`  ${pieza.destino.padEnd(38)} ${mb(tam).padStart(8)}`);
+  console.log(`  Instalando @huggingface/transformers@${VERSION_TRANSFORMERS}...`);
+  fs.writeFileSync(path.join(TEMPORAL, 'package.json'),
+    JSON.stringify({ name: 'pixelsoft-ia', private: true, type: 'module' }, null, 2));
+
+  try {
+    correr('npm', [
+      'install',
+      `@huggingface/transformers@${VERSION_TRANSFORMERS}`,
+      '--no-audit', '--no-fund', '--omit=optional', '--omit=dev', '--loglevel=error'
+    ], { cwd: TEMPORAL, shell: process.platform === 'win32' });
+  } catch (e) {
+    console.error('\n  Fallo el npm install:', String(e.stderr || e.message).slice(0, 600));
+    process.exit(1);
   }
 
-  fs.rmSync(temporal, { recursive: true, force: true });
+  // --- 2. Empaquetar TODO en un solo fichero
+  console.log('  Empaquetando con esbuild...');
+  const entrada = path.join(TEMPORAL, 'entrada.js');
+  fs.writeFileSync(entrada, "export * from '@huggingface/transformers';\n");
+
+  const bundle = path.join(DESTINO, 'transformers.bundle.js');
+  try {
+    correr(esbuild, [
+      entrada,
+      '--bundle',
+      '--format=esm',
+      '--platform=browser',
+      '--target=es2022',
+      // sharp y onnxruntime-node son para Node: en el navegador no pintan nada
+      '--external:sharp',
+      '--external:onnxruntime-node',
+      '--external:fs',
+      '--external:path',
+      `--outfile=${bundle}`,
+      '--log-level=warning'
+    ], { cwd: TEMPORAL });
+  } catch (e) {
+    console.error('\n  Fallo el empaquetado:', String(e.stderr || e.message).slice(0, 900));
+    process.exit(1);
+  }
+  console.log(`  transformers.bundle.js            ${mb(fs.statSync(bundle).size).padStart(8)}`);
+
+  // --- 3. Copiar el motor de WebAssembly (eso no se puede empaquetar)
+  //
+  // Van las CUATRO variantes a proposito. ONNX Runtime elige una u otra segun
+  // lo que encuentre en el movil (varios nucleos, asyncify, WebGPU...), y el
+  // nombre lo construye a trozos en tiempo de ejecucion, asi que no hay forma
+  // de saber de antemano cual va a pedir. Mejor tenerlas todas que comerse un
+  // 404 a mitad de la descarga del modelo.
+  const distOrt = path.join(TEMPORAL, 'node_modules', 'onnxruntime-web', 'dist');
+  if (!fs.existsSync(distOrt)) {
+    console.error('\n  No encuentro onnxruntime-web dentro del npm install.');
+    process.exit(1);
+  }
+
+  let total = fs.statSync(bundle).size;
+  const motores = fs.readdirSync(distOrt)
+    .filter((n) => /^ort-wasm-.*\.(mjs|wasm)$/.test(n));
+
+  if (!motores.length) {
+    console.error('\n  No hay ficheros ort-wasm-* en onnxruntime-web/dist');
+    process.exit(1);
+  }
+
+  for (const nombre of motores) {
+    const destino = path.join(DESTINO, nombre);
+    fs.copyFileSync(path.join(distOrt, nombre), destino);
+    const t = fs.statSync(destino).size;
+    total += t;
+    console.log(`  ${nombre.padEnd(40)} ${mb(t).padStart(8)}`);
+  }
+
+  // --- 4. Limpiar
+  fs.rmSync(TEMPORAL, { recursive: true, force: true });
 
   console.log('  ' + '-'.repeat(56));
   console.log(`  Total: ${mb(total)} en public/ia/`);

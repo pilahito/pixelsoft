@@ -116,6 +116,55 @@ ejecutar nada.
 
 ---
 
+## 1.6. IA de verdad dentro del móvil
+
+El APK **no necesita el PC para nada**. Por defecto los empleados piensan con
+un *cerebro simulado* (reglas y casi 1.000 frases escritas a mano), pero puedes
+activar una **IA de verdad que se ejecuta dentro del teléfono**.
+
+En **✏️ Cerebro → Qué cerebro usan** eliges entre simulado e IA real.
+
+Modelos disponibles (se descargan una sola vez y se quedan guardados):
+
+| Modelo | Descarga | Nota |
+|---|---|---|
+| SmolLM2 · 360M | ~260 MB | La mitad de descarga. Escribe más simple |
+| Qwen 2.5 · 0,5B | ~490 MB | El que mejor escribe. Recomendado |
+| Qwen 2.5 · 1,5B | ~1,1 GB | El que mejor razona, pero ocupa mucho y va lento |
+
+### Cómo está montado
+
+- **El motor va dentro del APK** (~84 MB), así que nunca hay que bajarlo:
+  `transformers.bundle.js` más las cuatro variantes de `ort-wasm-*.wasm`.
+- **El modelo no**: son cientos de megas y se descarga la primera vez.
+- La inferencia se ejecuta en un **worker**, no en el hilo principal. Sin eso,
+  el juego se quedaría congelado 30 segundos cada vez que alguien piensa.
+- Hacen falta las cabeceras `COOP`/`COEP` para activar `SharedArrayBuffer`, que
+  es lo que deja al motor usar **varios núcleos**. Se usa `credentialless` en
+  vez de `require-corp` porque el modelo se baja de `huggingface.co`, otro
+  dominio, y con `require-corp` esa descarga quedaría bloqueada.
+- Las cuatro variantes del motor están a propósito: ONNX Runtime elige una u
+  otra según lo que encuentre en el móvil, y el nombre lo construye a trozos en
+  tiempo de ejecución. Mejor tenerlas todas que comerse un 404 a mitad.
+
+### Lo que hay que saber antes de activarla
+
+- **Tarda**. Un modelo de 0,5B en un móvil tarda 10-40 segundos por decisión,
+  contra los ~4 segundos del `gemma-9B` en el PC.
+- **Escribe peor**. Es pequeño. Sus frases pueden ser más sosas que las que
+  escribí a mano para el cerebro simulado. Es el precio de no depender del PC.
+- **Se nota en la batería**, y el móvil se calienta si le das mucho.
+- La elección se recuerda: la próxima vez se activa solo, sin volver a bajar nada.
+
+> **Nota técnica:** de momento va siempre por CPU aunque el móvil tenga WebGPU.
+> Para usar la GPU, `transformers.js` hace un `import("onnxruntime-web/webgpu")`
+> con un nombre "pelado" que el navegador no sabe resolver sin un *import map*.
+> Se arregla empaquetando la librería con esbuild (que sí lo resuelve) y
+> cambiando `dispositivo` a `'webgpu'` en `cerebro-onnx.js`. Sería entre 2 y 5
+> veces más rápido.
+
+---
+
 ## 2. Qué hay en pantalla
 
 | Zona | Qué es |
@@ -132,8 +181,29 @@ ejecutar nada.
 | 🟢 Verde | Trabajando (genera calidad para la empresa) |
 | 🔵 Azul | **Pensando** — hay una llamada real al modelo en marcha |
 | 🟠 Ámbar | Reparando su ordenador |
+| 🟡 Amarillo verdoso | Tiene un **virus** (la pantalla se llena de basura) |
 | 🔴 Rojo | Ordenador roto, parado, no puede trabajar |
 | ⚫ Negro | Fuera de horario, o está en otro sitio |
+
+### Sonsonete
+
+No hay ni un solo fichero de audio: los pitiditos se fabrican en el momento con
+la **Web Audio API**, con ondas cuadradas y triangulares de consola de 8 bits.
+Cada empleado que habla suelta su **«pi»**, y cada poder de dios tiene su propio
+ruido — romper, virus, monedas al subir el precio, fanfarria al comprar una
+habitación. El botón **🔊** de la cabecera lo apaga todo, y se acuerda.
+
+Para trastear con ellos: `public/js/sonidos.js`, la tabla `RECETAS` del
+principio. Cada sonido son un par de números (frecuencia y duración).
+
+### En el móvil
+
+- **🔍 Zoom**: en un teléfono los personajes salen diminutos, así que la oficina
+  se acerca y se arrastra con el dedo.
+- **Navegador de habitaciones**: una fila de botones para saltar de una sala a
+  otra sin tener que buscar a ciegas con el zoom puesto.
+- **Toca a un personaje** para seleccionarlo, o usa los botones de nombre.
+- **Pellizcar no hace falta**: los controles ya están pensados para el dedo.
 
 ---
 
@@ -391,7 +461,8 @@ game/                Solo existe en el PC
 public/js/motor/     EL MOTOR DEL JUEGO. Es el mismo en PC y en movil.
   reglas.js          Personalidades, prompts, memoria, catalogo de acciones
   mundo.js           Economia, reloj, poderes de dios, habitaciones, virus
-  cerebro-simulado.js El cerebro del movil: reglas + frases escritas a mano
+  cerebro-simulado.js El cerebro de andar por casa: reglas + frases a mano
+  cerebro-onnx.js    El cerebro de verdad del movil: modelo ONNX en el telefono
   voces.js           Reacciones de los 5 personajes de siempre (425 frases)
   charla.js          Conversacion de esos 5 (120 frases)
   reclutas.js        Los 3 fichajes nuevos y su voz (327 frases)
@@ -399,16 +470,21 @@ public/js/motor/     EL MOTOR DEL JUEGO. Es el mismo en PC y en movil.
 
 public/
   index.html         Estructura de la interfaz
-  css/style.css      Estilos (incluye el modo movil y el zoom tactil)
+  css/style.css      Estilos (incluye el modo movil, zoom y navegador de salas)
   js/sprites.js      TODO el pixel art, dibujado por codigo
   js/render.js       Pinta la oficina y las habitaciones por profundidad
+  js/sonidos.js      Los pitiditos, sintetizados con Web Audio (sin ficheros)
   js/app.js          Une el motor con la interfaz. Sirve para los dos modos
+  ia/                Motor de IA para el movil (se baja con tools/traer-ia.js)
 
 apk/                 Proyecto Android (Java puro, sin Gradle)
 tools/
   construir-exe.js   Fabrica PixelSoft.exe
   construir-apk.js   Fabrica PixelSoft.apk
+  traer-ia.js        Se trae transformers.js + ONNX y los empaqueta
   captura.js         Capturas + errores de consola en Edge headless
+  hacer-icono.js     Dibuja el icono del juego (PNG e ICO, a mano)
+  revisar-corrupcion.js  Busca ficheros de texto con basura binaria
 ```
 
 **No hay dependencias externas.** Ni React, ni Vite, ni un `npm install` para
