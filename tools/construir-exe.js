@@ -112,14 +112,21 @@ function main() {
   console.log(`  Servidor empaquetado: ${kbBundle} KB`);
 
   // --- 2. Recoger los ficheros del juego que van incrustados
+  //
+  // Se deja fuera public/ia/ a proposito: son 84 MB de motor de IA para
+  // ejecutar un modelo DENTRO del navegador, y eso es cosa del movil. En el PC
+  // la IA la pone LM Studio, asi que meterlo aqui solo serviria para que el
+  // .exe pesara el doble sin ganar nada. Si alguien le da al boton de la IA del
+  // movil en el PC, el juego se lo dice con un mensaje claro en vez de romperse.
   const assets = {};
   let bytes = 0;
   for (const fichero of listarFicheros(path.join(RAIZ, 'public'))) {
     const clave = path.relative(RAIZ, fichero).replace(/\\/g, '/');
+    if (clave.startsWith('public/ia/')) continue;
     assets[clave] = fichero;
     bytes += fs.statSync(fichero).size;
   }
-  console.log(`  Ficheros incrustados: ${Object.keys(assets).length} (${(bytes / 1024).toFixed(0)} KB)`);
+  console.log(`  Ficheros incrustados: ${Object.keys(assets).length} (${(bytes / 1024 / 1024).toFixed(1)} MB)`);
 
   // --- 3. Construir el ejecutable
   if (fs.existsSync(SALIDA)) {

@@ -277,7 +277,17 @@ export class CerebroONNX {
       return true;
     } catch (e) {
       this.estado = 'error';
-      this.error = e && e.message ? e.message : String(e);
+      const bruto = e && e.message ? e.message : String(e);
+
+      // Si el motor no esta, el navegador suelta un "Failed to fetch
+      // dynamically imported module". Pasa en el .exe del PC, donde public/ia/
+      // se deja fuera a proposito porque alli la IA la pone LM Studio. Mejor
+      // explicarselo que soltarle el error tecnico a la cara.
+      const faltaElMotor = /import|fetch|module|404|network/i.test(bruto);
+      this.error = faltaElMotor
+        ? 'Esta version no trae el motor de IA para el movil. En el PC la IA la pone LM Studio; si quieres jugar con IA de verdad sin PC, usa el APK del telefono.'
+        : bruto;
+
       this.mensajeEstado = 'No he podido preparar la IA.';
       this._avisar();
       return false;
