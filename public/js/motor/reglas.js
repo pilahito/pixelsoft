@@ -91,8 +91,63 @@ const ESQUEMA_CHARLA = {
 
 const limitar = (v, min, max) => Math.max(min, Math.min(max, v));
 
-/** Redondea a 1 decimal, para que el JSON sea corto (menos tokens). */
+/** Redondea a 1 decimal, para que el texto del prompt sea corto. */
 const r1 = (v) => Math.round(v * 10) / 10;
+
+/**
+ * Saca el primer objeto JSON valido de un texto, aunque venga sucio.
+ *
+ * Un modelo pequeno casi nunca devuelve JSON limpio: se lo envuelve en
+ * markdown, le pone "Claro, aqui tienes:" delante, o se deja una coma final.
+ * Esto lo apaña. Lo usan los dos cerebros: el del PC y el del movil.
+ */
+export function extraerJson(raw) {
+  if (!raw) return null;
+  let texto = String(raw).trim();
+
+  // Quitar vallas de markdown: ```json ... ```
+  texto = texto.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+  try {
+    return JSON.parse(texto);
+  } catch (_) { /* seguimos */ }
+
+  // Escaneo de llaves balanceadas, respetando cadenas y escapes
+  const inicio = texto.indexOf('{');
+  if (inicio === -1) return null;
+
+  let profundidad = 0;
+  let enCadena = false;
+  let escapado = false;
+
+  for (let i = inicio; i < texto.length; i++) {
+    const c = texto[i];
+    if (enCadena) {
+      if (escapado) escapado = false;
+      else if (c === '\\') escapado = true;
+      else if (c === '"') enCadena = false;
+      continue;
+    }
+    if (c === '"') { enCadena = true; continue; }
+    if (c === '{') profundidad++;
+    else if (c === '}') {
+      profundidad--;
+      if (profundidad === 0) {
+        const candidato = texto.slice(inicio, i + 1);
+        try {
+          return JSON.parse(candidato);
+        } catch (_) {
+          try {
+            return JSON.parse(candidato.replace(/,\s*([}\]])/g, '$1'));
+          } catch (_) {
+            return null;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * Construye el system prompt: la personalidad + las reglas del juego.

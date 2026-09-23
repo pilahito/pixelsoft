@@ -176,11 +176,23 @@ function main() {
   fs.mkdirSync(path.join(CONSTRUIR, 'dex'), { recursive: true });
   fs.mkdirSync(path.join(CONSTRUIR, 'gen'), { recursive: true });
 
+  // --- 0. Las piezas de IA tienen que estar antes de copiar public/, o el APK
+  //        saldria sin motor de inferencia y la IA del movil no funcionaria.
+  const piezaIA = path.join(RAIZ, 'public', 'ia', 'transformers.web.min.js');
+  if (!fs.existsSync(piezaIA)) {
+    console.log('  Faltan las piezas de IA (transformers.js + ONNX). Las traigo...');
+    ejecutar(process.execPath, [path.join(RAIZ, 'tools', 'traer-ia.js')]);
+    if (!fs.existsSync(piezaIA)) {
+      console.error('\n  No he podido traer las piezas de IA. El APK saldria sin IA real.\n');
+      process.exit(1);
+    }
+  }
+
   // --- 1. Copiar el juego a los assets del APK
   const nFicheros = copiarCarpeta(path.join(RAIZ, 'public'), path.join(ASSETS, 'www'));
   let bytes = 0;
   for (const f of listarFicheros(ASSETS)) bytes += fs.statSync(f).size;
-  console.log(`  Juego incrustado : ${nFicheros} ficheros (${(bytes / 1024).toFixed(0)} KB)`);
+  console.log(`  Juego incrustado : ${nFicheros} ficheros (${(bytes / 1024 / 1024).toFixed(1)} MB)`);
 
   // --- 2. Compilar recursos
   console.log('  Compilando recursos...');

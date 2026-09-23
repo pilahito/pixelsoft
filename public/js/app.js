@@ -8,8 +8,44 @@
 
 import { Renderizador } from './render.js';
 import * as S from './sprites.js';
+import { sonidos } from './sonidos.js';
 
 const $ = (id) => document.getElementById(id);
+
+/* --------------------------------------------------------------- sonido */
+
+/**
+ * Los navegadores no dejan sonar nada hasta que el jugador toca la pantalla,
+ * asi que el audio se despierta con el primer toque y ya se queda vivo.
+ */
+function despertarSonido() {
+  sonidos.desbloquear();
+  window.removeEventListener('pointerdown', despertarSonido);
+  window.removeEventListener('keydown', despertarSonido);
+}
+window.addEventListener('pointerdown', despertarSonido);
+window.addEventListener('keydown', despertarSonido);
+
+/** Que suena con cada poder. Cada traste tiene su propio ruidito. */
+const SONIDO_PODER = {
+  precio: 'moneda',
+  bono: 'bono',
+  contratar: 'contratar',
+  comprar_habitacion: 'habitacion',
+  mejorar_oficina: 'habitacion',
+  instalar_hardware: 'hardware',
+  romper_ordenador: 'romper',
+  meter_virus: 'virus',
+  apagon: 'apagon',
+  despedir: 'error',
+  reganar: 'error',
+  antivirus: 'reparado',
+  arreglar_todo: 'reparado',
+  arreglar_ordenador: 'reparado',
+  cafetera: 'moneda',
+  dia_libre: 'dia',
+  subir_alquiler: 'error'
+};
 
 const lienzo = $('oficina');
 /** Se crea al arrancar: necesita el config para saber donde va cada habitacion. */
@@ -39,6 +75,8 @@ let MODO_LOCAL = location.protocol === 'file:' || new URLSearchParams(location.s
 
 let mundoLocal = null;
 let cerebroLocal = null;
+/** Referencia al simulado, para poder volver a el si se suelta la IA real. */
+let cerebroSimuladoLocal = null;
 let configLocal = null;
 
 /* ------------------------------------------------------------- utilidades */
@@ -240,6 +278,7 @@ function actualizarCabecera() {
   actualizarMedidorPrecio();
   actualizarCuentas();
   actualizarHabitaciones();
+  pintarNavSalas();
 }
 
 function actualizarCabeceraIA() {
@@ -269,6 +308,21 @@ function actualizarRegistro() {
   const sucesos = estado.sucesos;
   const ultimo = sucesos.length ? sucesos[sucesos.length - 1].t : 0;
   if (ultimo === ultimoSucesoRender) return;
+
+  // Sonidito cuando alguien habla: un "pi" por empleado que dice algo nuevo.
+  // Se mira solo lo que ha llegado desde la ultima vez, y con un tope, para
+  // que no se convierta en una traca si hablan los seis a la vez.
+  const nuevos = sucesos.filter((s) => s.t > (ultimoSucesoRender || 0));
+  const voces = nuevos.filter((s) => s.tipo === 'dialogo').slice(0, 3);
+  voces.forEach((s, i) => {
+    // Un pelin mas agudo o mas grave segun quien hable: asi no suenan igual.
+    const variantes = ['pi', 'piAgudo', 'piGrave'];
+    setTimeout(() => sonidos.tocar(variantes[i % variantes.length]), i * 170);
+  });
+  if (nuevos.some((s) => s.tipo === 'dimision' || s.tipo === 'alerta')) sonidos.tocar('error');
+  if (nuevos.some((s) => s.tipo === 'reparacion')) sonidos.tocar('reparado');
+  if (nuevos.some((s) => s.tipo === 'dinero')) sonidos.tocar('dia');
+
   ultimoSucesoRender = ultimo;
 
   const lista = $('registro');
@@ -666,6 +720,165 @@ $('cerebro-guardar').addEventListener('click', async () => {
   }
 });
 
+/* ------------------------------------------- cerebro del movil (IA real) */
+
+/**
+ * En el movil se puede elegir entre DOS cerebros:
+ *
+ *   - simulado: reglas y frases escritas a mano. Instantaneo y sin descargas.
+ *   - onnx:     un modelo de verdad ejecutandose DENTRO del telefono.
+ *
+ * El motor del juego no nota la diferencia: solo pide decisiones y le da igual
+ * quien las tome. Por eso cambiar de uno a otro es tan simple como reemplazar
+ * `mundoLocal.cerebro`.
+ */
+let cerebroONNX = null;
+let catalogoIA = [];
+let cerebroElegido = 'simulado';
+
+try {
+  cerebroElegido = localStorage.getItem('pixelsoft.cerebro') || 'simulado';
+} catch (_) { /* navegacion privada: no pasa nada */ }
+
+function guardarEleccionCerebro(tipo) {
+  cerebroElegido = tipo;
+  try { localStorage.setItem('pixelsoft.cerebro', tipo); } catch (_) { /* da igual */ }
+}
+
+function pintarCerebroActual() {
+  const texto = $('cerebro-actual');
+  if (!texto) return;
+  if (cerebroElegido === 'onnx') {
+    const m = catalogoIA.find((x) => x.id === (cerebroONNX && cerebroONNX.modeloElegido));
+    texto.innerHTML = `Ahora mismo: <strong>IA real en el móvil</strong>` +
+      (m ? ` (${escapar(m.nombre)})` : '') + '. Tarda unos segundos por decisión.';
+  } else {
+    texto.innerHTML = 'Ahora mismo: <strong>cerebro simulado</strong>. Instantáneo y sin descargas.';
+  }
+}
+
+async function cargarCatalogoIA() {
+  const sel = $('ia-modelo');
+  if (!sel || sel.options.length) return;
+  try {
+    const modulo = await import('./motor/cerebro-onnx.js');
+    catalogoIA = modulo.MODELOS;
+    sel.innerHTML = catalogoIA
+      .map((m) => `<option value="${m.id}">${escapar(m.nombre)} · ~${m.mb} MB${m.recomendado ? '  (recomendado)' : ''}</option>`)
+      .join('');
+    sel.addEventListener('change', actualizarNotaModelo);
+    actualizarNotaModelo();
+  } catch (e) {
+    $('ia-estado').textContent = 'No he podido cargar la lista de modelos: ' + e.message;
+  }
+}
+
+function actualizarNotaModelo() {
+  const sel = $('ia-modelo');
+  if (!sel) return;
+  const m = catalogoIA.find((x) => x.id === sel.value);
+  $('ia-nota').textContent = m ? m.nota : '';
+}
+
+/** Pinta el estado de la descarga/carga segun lo que diga el cerebro. */
+function pintarEstadoIA(info) {
+  const caja = $('ia-progreso-caja');
+  const barra = $('ia-progreso');
+  const detalle = $('ia-detalle');
+  const estado = $('ia-estado');
+  if (!caja || !info) return;
+
+  const enMarcha = info.estado === 'descargando' || info.estado === 'cargando';
+  caja.hidden = !enMarcha && info.estado !== 'error';
+
+  if (barra) barra.style.width = Math.max(0, Math.min(100, info.progreso || 0)) + '%';
+  if (detalle) detalle.textContent = info.detalle || info.mensaje || '';
+
+  if (info.estado === 'listo') {
+    estado.textContent = `✅ IA lista (${info.dispositivo === 'webgpu' ? 'acelerada por GPU' : 'en el procesador'}). ` +
+      'Los empleados ya piensan con el modelo de verdad.';
+  } else if (info.estado === 'error') {
+    estado.textContent = '❌ ' + (info.error || 'No he podido preparar la IA.');
+  } else if (enMarcha) {
+    estado.textContent = `${info.mensaje} ${info.progreso || 0}%`;
+  } else {
+    estado.textContent = info.mensaje || '';
+  }
+}
+
+/** Descarga (si hace falta) y activa la IA real dentro del telefono. */
+async function prepararIA() {
+  const boton = $('ia-preparar');
+  const modelo = $('ia-modelo') && $('ia-modelo').value;
+  if (!modelo) return;
+
+  boton.disabled = true;
+  try {
+    if (!cerebroONNX) {
+      const { CerebroONNX } = await import('./motor/cerebro-onnx.js');
+      cerebroONNX = new CerebroONNX();
+      cerebroONNX.alProgresar(pintarEstadoIA);
+    }
+
+    pintarEstadoIA(cerebroONNX.info());
+    const bien = await cerebroONNX.preparar(modelo);
+    pintarEstadoIA(cerebroONNX.info());
+
+    if (bien && mundoLocal) {
+      mundoLocal.cerebro = cerebroONNX;
+      try { localStorage.setItem('pixelsoft.modelo', modelo); } catch (_) { /* da igual */ }
+      mundoLocal.registrar('sistema', `La IA del movil esta lista (${modelo}). Los empleados ya piensan con un modelo de verdad.`);
+      mundoLocal._emitir();
+      guardarEleccionCerebro('onnx');
+      pintarCerebroActual();
+      ajustarCintaLocal();
+      brindis('IA lista. Dale a un poder de dios y mira cómo reaccionan.');
+    }
+  } catch (e) {
+    $('ia-estado').textContent = '❌ ' + e.message;
+  } finally {
+    boton.disabled = false;
+  }
+}
+
+/** Vuelve al cerebro simulado y suelta el modelo de la memoria. */
+async function liberarIA() {
+  if (cerebroONNX) await cerebroONNX.descargar();
+  if (mundoLocal) {
+    const { CerebroSimulado } = await import('./motor/cerebro-simulado.js');
+    mundoLocal.cerebro = cerebroSimuladoLocal || new CerebroSimulado();
+    mundoLocal._emitir();
+  }
+  guardarEleccionCerebro('simulado');
+  pintarCerebroActual();
+  ajustarCintaLocal();
+  $('ia-estado').textContent = 'Modelo liberado. Sigue descargado en el telefono: volver a activarlo es instantaneo.';
+}
+
+document.querySelectorAll('[data-cerebro]').forEach((boton) => {
+  boton.addEventListener('click', async () => {
+    const tipo = boton.dataset.cerebro;
+    $('ia-movil').hidden = tipo !== 'onnx';
+    if (tipo === 'onnx') {
+      await cargarCatalogoIA();
+      if (cerebroONNX && cerebroONNX.listo) {
+        // Ya estaba descargado: se activa sin volver a bajar nada.
+        mundoLocal.cerebro = cerebroONNX;
+        guardarEleccionCerebro('onnx');
+        pintarCerebroActual();
+        ajustarCintaLocal();
+        pintarEstadoIA(cerebroONNX.info());
+        mundoLocal._emitir();
+      }
+    } else {
+      await liberarIA();
+    }
+  });
+});
+
+$('ia-preparar') && $('ia-preparar').addEventListener('click', prepararIA);
+$('ia-liberar') && $('ia-liberar').addEventListener('click', liberarIA);
+
 /* -------------------------------------------------------- poderes de dios */
 
 async function enviarDios(accion, carga = {}, silencioso = false) {
@@ -676,11 +889,41 @@ async function enviarDios(accion, carga = {}, silencioso = false) {
       body: JSON.stringify({ accion, carga })
     });
     if (!silencioso) brindis(r.mensaje);
+    sonidos.tocar(SONIDO_PODER[accion] || 'clic');
     return r;
   } catch (e) {
     brindis(e.message, true);
+    sonidos.tocar('error');
     return null;
   }
+}
+
+/* --------------------------------------------------------------- sonido */
+
+// Cualquier boton de la interfaz hace su clic. Se hace aqui, en un solo sitio,
+// en vez de ir boton por boton.
+document.addEventListener('click', (ev) => {
+  if (!ev.target.closest('.btn, .chip, .chip-sala, .pestana, .zoom-btn, .btn-sonido')) return;
+  despertarSonido();
+  // Los poderes ya suenan con lo suyo, asi que aqui solo los botones normales.
+  if (ev.target.closest('[data-dios]')) return;
+  sonidos.tocar('clic');
+}, true);
+
+const botonSonido = $('btn-sonido');
+function pintarBotonSonido() {
+  if (!botonSonido) return;
+  botonSonido.textContent = sonidos.activo ? '🔊' : '🔇';
+  botonSonido.classList.toggle('apagado', !sonidos.activo);
+  botonSonido.title = sonidos.activo ? 'Apagar los sonidos' : 'Encender los sonidos';
+}
+if (botonSonido) {
+  botonSonido.addEventListener('click', () => {
+    sonidos.activar(!sonidos.activo);
+    pintarBotonSonido();
+    if (sonidos.activo) sonidos.tocar('pi');
+  });
+  pintarBotonSonido();
 }
 
 let sliderActivo = false;
@@ -855,6 +1098,56 @@ function centrarEnEmpleado(id) {
   cajaLienzo.scrollLeft = Math.max(0, x - cajaLienzo.clientWidth / 2);
 }
 
+/* ------------------------------------------- navegador de habitaciones */
+
+/**
+ * Con seis habitaciones y el zoom puesto, en un movil solo se ve un trozo.
+ * Arrastrar el dedo a ciegas para encontrar a alguien es incomodisimo, asi que
+ * se ponen botones para saltar directamente a cada sala comprada.
+ */
+function pintarNavSalas() {
+  const cont = $('salas-nav');
+  if (!cont || !estado) return;
+
+  const todas = (configLocal && configLocal.habitaciones) || [];
+  const compradas = estado.empresa.habitaciones || [];
+  const firma = compradas.join(',');
+
+  // No rehacer el DOM en cada tick: se perderia el scroll del propio navegador.
+  if (cont.dataset.firma === firma) return;
+  cont.dataset.firma = firma;
+
+  cont.innerHTML = todas
+    .filter((h) => compradas.includes(h.id))
+    .map((h) => `<button class="chip-sala" data-sala="${h.id}">${escapar(h.nombre)}</button>`)
+    .join('');
+}
+
+/** Lleva la vista a una habitacion concreta. */
+function centrarEnSala(id) {
+  if (!renderizador || !configLocal || !estado) return;
+  const sala = (configLocal.habitaciones || []).find((h) => h.id === id);
+  if (!sala) return;
+
+  // Si no hay zoom, ya se ve toda la oficina: no hay nada que mover.
+  if (!cajaLienzo.classList.contains('zoom')) return;
+
+  const rect = lienzo.getBoundingClientRect();
+  if (!rect.width) return;
+
+  // Centro de la sala, de casillas a pixeles de pantalla.
+  const centroMundo = (sala.x + sala.ancho / 2) * S.TAM;
+  const x = centroMundo * 2 * (rect.width / lienzo.width);
+  cajaLienzo.scrollLeft = Math.max(0, x - cajaLienzo.clientWidth / 2);
+
+  document.querySelectorAll('.chip-sala').forEach((b) => b.classList.toggle('activa', b.dataset.sala === id));
+}
+
+document.addEventListener('click', (ev) => {
+  const boton = ev.target.closest('[data-sala]');
+  if (boton) centrarEnSala(boton.dataset.sala);
+});
+
 /* ------------------------------------------------- clic en un personaje */
 
 lienzo.addEventListener('click', (ev) => {
@@ -954,11 +1247,33 @@ async function iniciarLocal() {
 
     // El config ya se ha leido en iniciar().
     cerebroLocal = new CerebroSimulado();
+    cerebroSimuladoLocal = cerebroLocal;
     mundoLocal = new Mundo(configLocal, cerebroLocal);
     mundoLocal.iniciar();
 
     estado = mundoLocal.snapshot();
     ajustarInterfazLocal();
+
+    // Si la ultima vez eligio la IA del movil, se intenta reactivar sola
+    // (el modelo ya esta descargado, asi que es instantaneo).
+    if (cerebroElegido === 'onnx') {
+      try {
+        const { CerebroONNX } = await import('./motor/cerebro-onnx.js');
+        cerebroONNX = new CerebroONNX();
+        cerebroONNX.alProgresar(pintarEstadoIA);
+        const bien = await cerebroONNX.preparar(localStorage.getItem('pixelsoft.modelo') || undefined);
+        if (bien) {
+          mundoLocal.cerebro = cerebroONNX;
+          estado = mundoLocal.snapshot();
+        } else {
+          guardarEleccionCerebro('simulado');
+        }
+      } catch (_) {
+        guardarEleccionCerebro('simulado');
+      }
+    }
+    pintarCerebroActual();
+    ajustarCintaLocal();
 
     // Gancho de depuracion: permite trastear la partida desde la consola del
     // navegador (o desde las pruebas automaticas). No afecta al juego.
@@ -975,6 +1290,17 @@ async function iniciarLocal() {
   } catch (e) {
     brindis('No he podido arrancar el juego: ' + e.message, true);
     console.error(e);
+  }
+}
+
+/** La cinta de arriba dice con que cerebro estan pensando ahora mismo. */
+function ajustarCintaLocal() {
+  const cinta = $('cinta-local');
+  if (!cinta) return;
+  if (cerebroElegido === 'onnx' && cerebroONNX && cerebroONNX.listo) {
+    cinta.innerHTML = '🧠 Modo autónomo · los empleados piensan con una <strong>IA de verdad dentro del teléfono</strong>';
+  } else {
+    cinta.innerHTML = '🧠 Modo autónomo · los empleados reaccionan con un <strong>cerebro simulado</strong>, no con un modelo real';
   }
 }
 

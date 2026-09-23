@@ -51,6 +51,8 @@
     </div>
   </div>
 
+  <button class="btn-sonido" id="btn-sonido" title="Encender o apagar los sonidos">🔊</button>
+
   <div class="ia" id="hud-ia" title="Actividad del modelo local">
     <span class="punto" id="ia-punto"></span>
     <span id="ia-texto">conectando…</span>
@@ -64,6 +66,9 @@
       <canvas id="oficina"></canvas>
       <div class="aviso-apagon" id="aviso-apagon" hidden>⚡ SIN LUZ</div>
     </div>
+    <!-- En el movil, con el zoom puesto, esto sirve para saltar de una
+         habitacion a otra sin tener que arrastrar el dedo a ciegas. -->
+    <div class="salas-nav" id="salas-nav"></div>
 
     <div class="registro-caja">
       <div class="registro-cab">
@@ -206,10 +211,38 @@
 
     <!-- ------------------------------------------------------ CEREBRO -->
     <div class="panel" id="panel-cerebro">
-      <p class="intro">
+      <p class="intro" id="intro-cerebro">
         Cambia el texto y mira qué pasa. Bajar la <strong>temperatura</strong> lo vuelve
         predecible y repetitivo; subirla lo vuelve creativo y disperso.
       </p>
+
+      <div class="bloque">
+        <h3>🧠 Qué cerebro usan</h3>
+        <div class="rejilla-acciones">
+          <button class="btn" data-cerebro="simulado">⚡ Simulado · instantáneo</button>
+          <button class="btn" data-cerebro="onnx">🧠 IA real en el móvil</button>
+        </div>
+        <p class="nota" id="cerebro-actual">Ahora mismo: cerebro simulado.</p>
+
+        <div id="ia-movil" hidden>
+          <label class="campo" style="margin-top:10px">
+            <span>Modelo</span>
+            <select id="ia-modelo"></select>
+          </label>
+          <p class="nota" id="ia-nota"></p>
+          <div id="ia-progreso-caja" hidden>
+            <div class="barra-pista" style="height:12px;margin:8px 0 4px">
+              <div class="barra-relleno" id="ia-progreso" style="width:0%;background:var(--acento)"></div>
+            </div>
+            <p class="nota" id="ia-detalle">Preparando…</p>
+          </div>
+          <div class="rejilla-acciones" style="margin-top:9px">
+            <button class="btn bonito" id="ia-preparar">⬇️ Descargar y activar</button>
+            <button class="btn" id="ia-liberar">🧹 Liberar memoria</button>
+          </div>
+          <p class="nota" id="ia-estado"></p>
+        </div>
+      </div>
       <div class="bloque">
         <label class="campo">
           <span>Empleado</span>

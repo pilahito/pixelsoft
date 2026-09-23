@@ -123,6 +123,20 @@ body {
 .punto.ocupado { background: var(--ambar); color: var(--ambar); animation: latido 0.8s infinite; }
 .punto.malo { background: var(--rojo); color: var(--rojo); }
 
+/* Boton de sonido: pequeno, en la cabecera, junto al estado de la IA */
+.btn-sonido {
+  padding: 5px 9px;
+  background: var(--fondo3);
+  border: 1px solid var(--borde);
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.btn-sonido:hover { border-color: var(--borde-claro); }
+.btn-sonido.apagado { opacity: 0.45; }
+
 @keyframes latido { 50% { opacity: 0.25; } }
 
 /* --------------------------------------------------------------- LAYOUT */
@@ -180,6 +194,9 @@ main {
 
 /* El boton de zoom solo existe en el movil: en el PC se ve toda la oficina. */
 .zoom-btn { display: none; }
+
+/* Navegador de habitaciones: tambien solo tiene sentido en el movil. */
+.salas-nav { display: none; }
 
 /* ------------------------------------------------------------ REGISTRO */
 
@@ -733,6 +750,37 @@ pre.prompt-crudo .clave { color: #ffd98a; }
     padding: 4px 10px 8px;
     max-height: 155px;
   }
+
+  /* --- Navegador de habitaciones: para saltar de sala sin arrastrar */
+  .salas-nav {
+    display: flex;
+    gap: 6px;
+    padding: 7px 8px;
+    overflow-x: auto;
+    background: var(--fondo2);
+    border-top: 1px solid var(--borde);
+    border-bottom: 2px solid var(--borde);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .salas-nav::-webkit-scrollbar { display: none; }
+
+  .chip-sala {
+    flex: 0 0 auto;
+    padding: 9px 13px;
+    background: #202a3c;
+    border: 1px solid var(--borde-claro);
+    color: var(--texto);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  .chip-sala.activa {
+    background: #1d4a6b;
+    border-color: var(--acento);
+    color: #d6eeff;
+  }
+  .chip-sala:active { background: #2a3648; }
   .registro-cab { padding: 5px 10px; }
   .registro-cab h2 { font-size: 10px; }
   .pista { display: none; }

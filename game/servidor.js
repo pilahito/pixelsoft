@@ -43,7 +43,10 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.webmanifest': 'application/manifest+json',
-  '.txt': 'text/plain; charset=utf-8'
+  '.txt': 'text/plain; charset=utf-8',
+  // El motor de IA: si el .wasm no se sirve como application/wasm, el
+  // navegador se niega a ejecutarlo.
+  '.wasm': 'application/wasm'
 };
 
 function responderJson(res, codigo, objeto) {
@@ -227,7 +230,13 @@ export function iniciarServidor({ config, leerEstatico, args = [], simulado = fa
       res.writeHead(200, {
         'Content-Type': MIME[path.extname(limpio).toLowerCase()] || 'application/octet-stream',
         'Content-Length': datos.length,
-        'Cache-Control': 'no-store'
+        'Cache-Control': 'no-store',
+        // Estas cabeceras activan SharedArrayBuffer, que es lo que deja al
+        // motor de IA usar varios nucleos. Van aqui para que el PC se comporte
+        // igual que el APK: asi lo que pruebo en uno vale para el otro.
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+        'Cross-Origin-Resource-Policy': 'cross-origin'
       });
       res.end(datos);
     } catch (e) {

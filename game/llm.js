@@ -21,58 +21,9 @@
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
 
-/** Extrae el primer objeto JSON valido de un texto, aunque venga sucio. */
-function extraerJson(raw) {
-  if (!raw) return null;
-  let texto = String(raw).trim();
-
-  // Quitar vallas de markdown: ```json ... ```
-  texto = texto.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-
-  // Intento directo
-  try {
-    return JSON.parse(texto);
-  } catch (_) {
-    /* seguimos */
-  }
-
-  // Escaneo de llaves balanceadas, respetando cadenas y escapes
-  const inicio = texto.indexOf('{');
-  if (inicio === -1) return null;
-
-  let profundidad = 0;
-  let enCadena = false;
-  let escapado = false;
-
-  for (let i = inicio; i < texto.length; i++) {
-    const c = texto[i];
-    if (enCadena) {
-      if (escapado) escapado = false;
-      else if (c === '\\') escapado = true;
-      else if (c === '"') enCadena = false;
-      continue;
-    }
-    if (c === '"') { enCadena = true; continue; }
-    if (c === '{') profundidad++;
-    else if (c === '}') {
-      profundidad--;
-      if (profundidad === 0) {
-        const candidato = texto.slice(inicio, i + 1);
-        try {
-          return JSON.parse(candidato);
-        } catch (_) {
-          try {
-            // Ultimo recurso: quitar comas finales
-            return JSON.parse(candidato.replace(/,\s*([}\]])/g, '$1'));
-          } catch (_) {
-            return null;
-          }
-        }
-      }
-    }
-  }
-  return null;
-}
+// extraerJson vive en reglas.js, para no tener dos copias de lo mismo: la usan
+// igual el cerebro del PC y el del movil.
+import { extraerJson } from '../public/js/motor/reglas.js';
 
 /** Convierte los esquemas que usamos a la forma que espera llama.cpp. */
 function cuerpoPeticion({ modelo, mensajes, temperatura, maxTokens, esquema }) {

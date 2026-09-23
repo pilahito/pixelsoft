@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Sirve el juego leyendolo de los assets del propio APK.
@@ -69,7 +70,32 @@ public class ClienteWeb extends WebViewClient {
             return noEncontrado(camino);
         }
 
-        return new WebResourceResponse(tipoMime(camino), "utf-8", flujo);
+        return respuesta(camino, tipoMime(camino), flujo);
+    }
+
+    /**
+     * Envuelve el flujo en una respuesta con las cabeceras que hacen falta.
+     *
+     * Las de Cross-Origin son para que el navegador active SharedArrayBuffer,
+     * que es lo que permite al motor de IA usar VARIOS NUCLEOS del movil. Sin
+     * esto, el modelo iria a un solo hilo y tardaria cuatro veces mas.
+     *
+     * Se usa "credentialless" en vez de "require-corp" a proposito: el modelo
+     * se descarga de huggingface.co, que es otro dominio, y con require-corp
+     * esa descarga quedaria bloqueada.
+     *
+     * La codificacion se deja a null para los binarios (.wasm): decirle utf-8 a
+     * un fichero binario lo corrompe.
+     */
+    private WebResourceResponse respuesta(String camino, String mime, InputStream flujo) {
+        Map<String, String> cabeceras = new HashMap<String, String>();
+        cabeceras.put("Cross-Origin-Opener-Policy", "same-origin");
+        cabeceras.put("Cross-Origin-Embedder-Policy", "credentialless");
+        cabeceras.put("Cross-Origin-Resource-Policy", "cross-origin");
+
+        boolean binario = camino.toLowerCase().endsWith(".wasm");
+        String codificacion = binario ? null : "utf-8";
+        return new WebResourceResponse(mime, codificacion, 200, "OK", cabeceras, flujo);
     }
 
     /** Devuelve el flujo del asset, o null si no existe. */
@@ -125,6 +151,9 @@ public class ClienteWeb extends WebViewClient {
         if (c.endsWith(".svg")) return "image/svg+xml";
         if (c.endsWith(".woff2")) return "font/woff2";
         if (c.endsWith(".ico")) return "image/x-icon";
+        // El motor de IA: si el .wasm no se sirve como application/wasm, el
+        // navegador se niega a ejecutarlo.
+        if (c.endsWith(".wasm")) return "application/wasm";
         return TIPO_POR_DEFECTO;
     }
 }

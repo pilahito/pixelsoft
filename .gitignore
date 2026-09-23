@@ -24,3 +24,11 @@ _error.txt
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Motor de IA para el movil: ~41 MB de binarios. Se bajan con
+# 'node tools/traer-ia.js' (el script del APK lo llama solo si faltan).
+public/ia/
+
+# Carpeta danada por el sistema de ficheros (pendiente de chkdsk). No es
+# parte del proyecto: se quedo a medias al intentar borrarla.
+# (tools-roto ya no existe: el proyecto se mudo a G: por corrupcion de E:)
