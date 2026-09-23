@@ -23,6 +23,7 @@
  */
 
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
@@ -100,6 +101,54 @@ function abrirNavegador(direccion) {
       spawn('xdg-open', [direccion], { detached: true, stdio: 'ignore' }).unref();
     }
   } catch (_) { /* si no se puede, no pasa nada */ }
+}
+
+/* ------------------------------------------------- elegir un puerto libre */
+
+/** Comprueba si se puede escuchar en ese puerto. */
+function puertoLibre(puerto, host) {
+  return new Promise((resolve) => {
+    const sonda = net.createServer();
+    sonda.once('error', () => resolve(false));
+    sonda.once('listening', () => sonda.close(() => resolve(true)));
+    sonda.listen(puerto, host);
+  });
+}
+
+/** Mira si en ese puerto ya hay otro PixelSoft abierto. */
+async function hayOtroPixelSoft(puerto) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${puerto}/api/state`, {
+      signal: AbortSignal.timeout(1500)
+    });
+    if (!res.ok) return false;
+    const datos = await res.json();
+    return Array.isArray(datos.agentes) && !!datos.empresa;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Elige en que puerto escuchar.
+ *
+ * Antes esto fallaba con un "el puerto esta ocupado" y se acababa el juego,
+ * que es lo peor que te puede pasar cuando haces doble clic en un .exe. Ahora:
+ *
+ *   - Si el puerto esta libre, se usa.
+ *   - Si lo tiene OTRO PixelSoft, se avisa y se abre ese (no tiene sentido
+ *     arrancar un segundo juego encima del primero).
+ *   - Si lo tiene cualquier otra cosa, se prueban los siguientes.
+ */
+async function elegirPuerto(preferido, host) {
+  if (await puertoLibre(preferido, host)) return { puerto: preferido };
+
+  if (await hayOtroPixelSoft(preferido)) return { puerto: preferido, yaHabia: true };
+
+  for (let p = preferido + 1; p <= preferido + 10; p++) {
+    if (await puertoLibre(p, host)) return { puerto: p, cambiado: true };
+  }
+  return { puerto: null };
 }
 
 /**
@@ -325,6 +374,35 @@ export function iniciarServidor({ config, leerEstatico, args = [], simulado = fa
     console.log('');
     console.log('  PIXELSOFT  -  tus IAs locales jugando a ser una empresa');
     console.log('  ' + '-'.repeat(58));
+
+    // El puerto, lo PRIMERO: si no hay sitio donde escuchar, no tiene sentido
+    // ponerse a conectar con el modelo.
+    const eleccion = await elegirPuerto(PUERTO, HOST);
+
+    if (eleccion.yaHabia) {
+      const direccion = `http://127.0.0.1:${PUERTO}`;
+      console.log('  Estado              : ya estaba abierto');
+      console.log('  ' + '-'.repeat(58));
+      console.log(`  PixelSoft ya se esta ejecutando. Abrelo aqui: ${direccion}`);
+      console.log('');
+      console.log(`  Si quieres una partida nueva, cierra el otro o usa: ${path.basename(process.argv[1] || 'PixelSoft.exe')} 4000`);
+      console.log('');
+      if (ABRIR) abrirNavegador(direccion);
+      process.exit(0);
+    }
+
+    if (!eleccion.puerto) {
+      console.error(`  Los puertos del ${PUERTO} al ${PUERTO + 10} estan todos ocupados.`);
+      console.error('  Prueba con otro:  PixelSoft.exe 5000');
+      console.error('');
+      process.exit(1);
+    }
+
+    const puerto = eleccion.puerto;
+    if (eleccion.cambiado) {
+      console.log(`  Puerto              : ${PUERTO} estaba ocupado, uso el ${puerto}`);
+    }
+
     console.log(`  Servidor de modelos : ${config.llm.baseUrl}`);
     console.log(`  Modelo por defecto  : ${config.modeloPorDefecto}`);
 
@@ -344,14 +422,14 @@ export function iniciarServidor({ config, leerEstatico, args = [], simulado = fa
 
     mundo.iniciar();
 
-    servidor.listen(PUERTO, HOST, () => {
-      const local = `http://127.0.0.1:${PUERTO}`;
+    servidor.listen(puerto, HOST, () => {
+      const local = `http://127.0.0.1:${puerto}`;
       console.log('  ' + '-'.repeat(58));
       console.log(`  Juega en este PC    : ${local}`);
 
       if (A_LA_RED) {
         const ip = ipLocal();
-        console.log(`  ABIERTO A LA RED    : ${ip ? `http://${ip}:${PUERTO}` : '(no he encontrado tu IP local)'}`);
+        console.log(`  ABIERTO A LA RED    : ${ip ? `http://${ip}:${puerto}` : '(no he encontrado tu IP local)'}`);
         console.log('  Desde el movil, abre esa direccion en el navegador.');
         console.log('  Cualquiera en tu WiFi puede entrar: usalo en redes de confianza.');
       } else {
@@ -367,11 +445,7 @@ export function iniciarServidor({ config, leerEstatico, args = [], simulado = fa
   })();
 
   servidor.on('error', (e) => {
-    if (e.code === 'EADDRINUSE') {
-      console.error(`\n  El puerto ${PUERTO} esta ocupado. Prueba: PixelSoft.exe 4000\n`);
-    } else {
-      console.error('\n  Error del servidor:', e.message, '\n');
-    }
+    console.error('\n  Error del servidor:', e.message, '\n');
     process.exit(1);
   });
 
