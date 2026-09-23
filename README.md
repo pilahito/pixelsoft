@@ -128,9 +128,14 @@ Modelos disponibles (se descargan una sola vez y se quedan guardados):
 
 | Modelo | Descarga | Nota |
 |---|---|---|
-| SmolLM2 · 360M | ~260 MB | La mitad de descarga. Escribe más simple |
-| Qwen 2.5 · 0,5B | ~490 MB | El que mejor escribe. Recomendado |
-| Qwen 2.5 · 1,5B | ~1,1 GB | El que mejor razona, pero ocupa mucho y va lento |
+| Qwen 2.5 · 0,5B | ~490 MB | **El recomendado.** Mejor equilibrio |
+| Qwen 2.5 · 1,5B | ~1,1 GB | El que mejor razona. Ocupa mucho y va lento |
+| SmolLM2 · 360M | ~260 MB | Solo si vas muy justo de espacio. Es muy flojito |
+
+> Sobre el de 360M, para que no te lleves un chasco: lo probé y **copia el
+> ejemplo del enunciado** en vez de decidir, o se inventa cosas que no vienen a
+> cuento. Es demasiado pequeño para esto. Está ahí por si alguien no puede
+> gastar más espacio, nada más.
 
 ### Cómo está montado
 
@@ -139,13 +144,35 @@ Modelos disponibles (se descargan una sola vez y se quedan guardados):
 - **El modelo no**: son cientos de megas y se descarga la primera vez.
 - La inferencia se ejecuta en un **worker**, no en el hilo principal. Sin eso,
   el juego se quedaría congelado 30 segundos cada vez que alguien piensa.
-- Hacen falta las cabeceras `COOP`/`COEP` para activar `SharedArrayBuffer`, que
-  es lo que deja al motor usar **varios núcleos**. Se usa `credentialless` en
-  vez de `require-corp` porque el modelo se baja de `huggingface.co`, otro
-  dominio, y con `require-corp` esa descarga quedaría bloqueada.
 - Las cuatro variantes del motor están a propósito: ONNX Runtime elige una u
   otra según lo que encuentre en el móvil, y el nombre lo construye a trozos en
   tiempo de ejecución. Mejor tenerlas todas que comerse un 404 a mitad.
+
+### Un tropiezo que merece la pena contar: Android ignora COOP/COEP
+
+Para que el motor reparta el trabajo entre varios núcleos hace falta
+`SharedArrayBuffer`, y para eso el navegador exige estar *aislado*, o sea, recibir
+las cabeceras `COOP` y `COEP`. En el PC funcionan perfectamente:
+
+```
+  crossOriginIsolated: true · sharedArrayBuffer: function · núcleos: 12
+```
+
+En el WebView de Android, **no**. Lo probé de las dos formas:
+
+| Cabecera | Aislamiento | Descarga del modelo |
+|---|---|---|
+| `credentialless` | ❌ `false` | ✅ funciona |
+| `require-corp` | ❌ `false` | ❌ **bloqueada** |
+
+O sea: Android no respeta esas cabeceras puestas desde el interceptor, y encima
+`require-corp` rompe la descarga. Se queda `credentialless`, que al menos deja
+bajar el modelo, y **el motor del móvil va a un solo hilo**. Es la razón de que
+se empaqueten también las variantes `asyncify` y `jspi` del `.wasm`: son las que
+ONNX Runtime usa cuando no puede repartir el trabajo.
+
+Se comprueba con `tools/probar-apk.js`, que se engancha al WebView por USB y
+ejecuta código dentro del APK de verdad.
 
 ### Lo que hay que saber antes de activarla
 

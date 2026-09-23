@@ -80,9 +80,17 @@ public class ClienteWeb extends WebViewClient {
      * que es lo que permite al motor de IA usar VARIOS NUCLEOS del movil. Sin
      * esto, el modelo iria a un solo hilo y tardaria cuatro veces mas.
      *
-     * Se usa "credentialless" en vez de "require-corp" a proposito: el modelo
-     * se descarga de huggingface.co, que es otro dominio, y con require-corp
-     * esa descarga quedaria bloqueada.
+     * OJO, y esto esta comprobado en el emulador: el WebView de Android NO
+     * respeta estas cabeceras puestas desde el interceptor. Da igual
+     * "credentialless" que "require-corp": el resultado siempre es
+     * crossOriginIsolated=false, o sea, sin SharedArrayBuffer. Se quedan
+     * puestas por si algun dia lo arreglan (y porque en el PC si funcionan),
+     * pero el motor de IA del movil va a UN SOLO HILO. Por eso se empaquetan
+     * tambien las variantes "asyncify" y "jspi" del .wasm: son las que ONNX
+     * Runtime usa cuando no puede repartir el trabajo entre varios nucleos.
+     *
+     * Con "require-corp" ademas se rompe la descarga del modelo, asi que se
+     * usa "credentialless", que al menos la deja pasar.
      *
      * La codificacion se deja a null para los binarios (.wasm): decirle utf-8 a
      * un fichero binario lo corrompe.

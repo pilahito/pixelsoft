@@ -38,20 +38,20 @@ export const MODELOS = [
     id: 'onnx-community/Qwen2.5-0.5B-Instruct',
     nombre: 'Qwen 2.5 · 0,5B',
     mb: 490,
-    nota: 'El que mejor escribe de los tres. Es el recomendado.',
+    nota: 'El recomendado: el que mejor equilibra calidad y descarga.',
     recomendado: true
-  },
-  {
-    id: 'HuggingFaceTB/SmolLM2-360M-Instruct',
-    nombre: 'SmolLM2 · 360M',
-    mb: 260,
-    nota: 'La mitad de descarga. Escribe mas simple.'
   },
   {
     id: 'onnx-community/Qwen2.5-1.5B-Instruct',
     nombre: 'Qwen 2.5 · 1,5B',
     mb: 1100,
-    nota: 'El que mejor razona, pero ocupa mucho y va lento.'
+    nota: 'El que mejor razona. Ocupa mucho y va lento, pero se nota.'
+  },
+  {
+    id: 'HuggingFaceTB/SmolLM2-360M-Instruct',
+    nombre: 'SmolLM2 · 360M',
+    mb: 260,
+    nota: 'Solo si vas muy justo de espacio. Es muy flojito: copia ejemplos y se lia.'
   }
 ];
 
@@ -62,15 +62,19 @@ const estimarTokens = (texto) => Math.ceil(String(texto || '').length / 4);
  *
  * Un modelo de 0,5B se pierde con las instrucciones largas del principio: se
  * pone a escribir prosa y se deja el JSON a medias. Repetirle al FINAL, y con
- * un ejemplo de la forma exacta, es lo que mas mejora el resultado. Los
- * modelos grandes no lo necesitan, pero tampoco les molesta.
+ * la forma exacta, es lo que mas mejora el resultado.
+ *
+ * Los valores del ejemplo son a proposito puntos suspensivos y no frases de
+ * verdad: si le pones un ejemplo con contenido, un modelo pequeno lo COPIA tal
+ * cual en vez de pensar el suyo. (Comprobado: SmolLM2-360M devolvia el ejemplo
+ * literal, con su "esto pienso" y su "esto digo".)
  */
 const RECORDATORIO_JSON = [
   '',
   '',
-  'Responde UNICAMENTE con el objeto JSON. Sin texto antes ni despues, sin markdown.',
-  'Ejemplo exacto de la forma:',
-  '{"pensamiento":"esto pienso","animo":60,"accion":"trabajar","dialogo":"esto digo","objetivo":"esto hare"}'
+  'FORMATO OBLIGATORIO: responde SOLO con un objeto JSON, sin nada antes ni despues.',
+  'Rellenalo con TUS propias palabras. NO copies los puntos suspensivos.',
+  '{"pensamiento":"...","animo":0,"accion":"...","dialogo":"...","objetivo":"..."}'
 ].join('\n');
 
 /* --------------------------------------------------------------- cerebro */
@@ -307,17 +311,54 @@ export class CerebroONNX {
     return '';
   }
 
-  async _generar(mensajes, { temperatura, maxTokens }) {
+  /**
+   * Una pasada de generacion. Si se pide, devuelve tambien el texto en crudo.
+   */
+  async _generar(mensajes, { temperatura, maxTokens, muestreo = true }) {
     const inicio = Date.now();
     const salida = await this.tuberia(mensajes, {
       max_new_tokens: Math.min(maxTokens || 140, 180),
-      do_sample: true,
+      do_sample: muestreo,
       temperature: limitar(temperatura == null ? 0.7 : temperatura, 0.1, 1.5),
       top_p: 0.9,
       repetition_penalty: 1.15,
       return_full_text: false
     });
     return { texto: this._texto(salida), ms: Date.now() - inicio };
+  }
+
+  /**
+   * Pide una decision al modelo y se asegura de que salga JSON.
+   *
+   * Un modelo de 0,5B falla bastante: se pone a escribir prosa y se deja el
+   * JSON. Cuando pasa, se le vuelve a pedir una vez, esta vez SIN muestreo
+   * aleatorio (siempre elige la palabra mas probable), que es cuando mas
+   * obedece. Cuesta una segunda pasada, pero solo cuando hace falta.
+   */
+  async _pedirJson(mensajes, { temperatura, maxTokens }) {
+    // Temperatura baja: cuanto menos se invente, mejor sale el JSON.
+    const t = Math.min(temperatura == null ? 0.6 : temperatura, 0.65);
+
+    const primera = await this._generar(mensajes, { temperatura: t, maxTokens });
+    let json = extraerJson(primera.texto);
+    if (json) return { ...primera, json, reintento: false };
+
+    const insistir = mensajes.concat([
+      {
+        role: 'user',
+        content: 'Tu respuesta anterior no era JSON valido. Responde OTRA VEZ, solo el objeto JSON, sin nada mas.'
+      }
+    ]);
+    const segunda = await this._generar(insistir, { temperatura: 0.3, maxTokens, muestreo: false });
+    json = extraerJson(segunda.texto);
+
+    return {
+      texto: segunda.texto,
+      ms: primera.ms + segunda.ms,
+      json,
+      reintento: true,
+      textoPrimero: primera.texto
+    };
   }
 
   _apuntar(entrada) {
@@ -340,7 +381,7 @@ export class CerebroONNX {
     const prompt = promptReaccion(mundo, agente, (Array.isArray(sucesos) ? sucesos : [sucesos]).join(' · ')) + RECORDATORIO_JSON;
 
     try {
-      const { texto, ms } = await this._generar(
+      const { texto, ms, json, reintento } = await this._pedirJson(
         [
           { role: 'system', content: system },
           { role: 'user', content: prompt }
@@ -348,7 +389,6 @@ export class CerebroONNX {
         { temperatura: agente.temperatura, maxTokens: 140 }
       );
 
-      const json = extraerJson(texto);
       const entrada = {
         id: this.registro.length ? this.registro[this.registro.length - 1].id + 1 : 1,
         t: Date.now(),
@@ -357,6 +397,7 @@ export class CerebroONNX {
         modelo: `${this.modeloElegido} (${this.dispositivo})`,
         temperatura: agente.temperatura,
         maxTokens: 140,
+        reintento: !!reintento,
         esquema: json ? Object.keys(json) : null,
         mensajes: [
           { role: 'system', content: system },
@@ -396,7 +437,7 @@ export class CerebroONNX {
     const prompt = promptCharla(mundo, agente, mensaje) + RECORDATORIO_JSON;
 
     try {
-      const { texto, ms } = await this._generar(
+      const { texto, ms, json, reintento } = await this._pedirJson(
         [
           { role: 'system', content: system },
           { role: 'user', content: prompt }
@@ -404,7 +445,6 @@ export class CerebroONNX {
         { temperatura: agente.temperatura, maxTokens: 160 }
       );
 
-      const json = extraerJson(texto);
       const entrada = {
         id: this.registro.length ? this.registro[this.registro.length - 1].id + 1 : 1,
         t: Date.now(),
@@ -413,6 +453,7 @@ export class CerebroONNX {
         modelo: `${this.modeloElegido} (${this.dispositivo})`,
         temperatura: agente.temperatura,
         maxTokens: 160,
+        reintento: !!reintento,
         esquema: json ? Object.keys(json) : null,
         mensajes: [
           { role: 'system', content: system },

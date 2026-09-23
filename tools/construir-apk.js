@@ -178,7 +178,7 @@ function main() {
 
   // --- 0. Las piezas de IA tienen que estar antes de copiar public/, o el APK
   //        saldria sin motor de inferencia y la IA del movil no funcionaria.
-  const piezaIA = path.join(RAIZ, 'public', 'ia', 'transformers.web.min.js');
+  const piezaIA = path.join(RAIZ, 'public', 'ia', 'transformers.bundle.js');
   if (!fs.existsSync(piezaIA)) {
     console.log('  Faltan las piezas de IA (transformers.js + ONNX). Las traigo...');
     ejecutar(process.execPath, [path.join(RAIZ, 'tools', 'traer-ia.js')]);

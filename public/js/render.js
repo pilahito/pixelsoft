@@ -129,6 +129,15 @@ export class Renderizador {
     this.ctx = canvas.getContext('2d');
     canvas.width = COLS * S.TAM * ESCALA;
     canvas.height = FILAS * S.TAM * ESCALA;
+
+    /**
+     * Cuantos pixeles de canvas mide una casilla del mundo. Empieza valiendo
+     * ESCALA, pero `ajustarTamano()` lo recalcula segun lo que se vea en
+     * pantalla. Puede ser decimal: todo el dibujo son rectangulos, no imagenes,
+     * asi que aguanta bien cualquier escala.
+     */
+    this.escala = ESCALA;
+
     this.ctx.imageSmoothingEnabled = false;
 
     this.habitaciones = (config && config.habitaciones) || [
@@ -139,6 +148,54 @@ export class Renderizador {
     this.frames = new Map();
     this.t = 0;
     this.ambiente = null;
+    this._ultimoTamano = '';
+  }
+
+  /**
+   * Dimensiona el canvas a los pixeles que ocupa DE VERDAD en pantalla.
+   *
+   * Esto era el culpable de que el texto se viera borroso. Antes el canvas
+   * media siempre 1920x1280 y el navegador lo encogia para que cupiera en su
+   * hueco: al encogerlo, los carteles de los nombres y los bocadillos, que van
+   * dibujados DENTRO del canvas, acababan hechos papilla. En Windows porque el
+   * hueco es mas estrecho que 1920, y en el movil mucho peor.
+   *
+   * Ahora el canvas mide justo lo que ocupa (multiplicado por la densidad de
+   * pantalla), asi que cada pixel del canvas cae en un pixel fisico y el texto
+   * sale nitido.
+   */
+  ajustarTamano() {
+    const caja = this.canvas.parentElement;
+    if (!caja) return;
+
+    const estilo = getComputedStyle(caja);
+    const anchoHueco = caja.clientWidth
+      - parseFloat(estilo.paddingLeft || 0) - parseFloat(estilo.paddingRight || 0);
+    const altoHueco = caja.clientHeight
+      - parseFloat(estilo.paddingTop || 0) - parseFloat(estilo.paddingBottom || 0);
+    if (anchoHueco <= 0 || altoHueco <= 0) return;
+
+    // Con el zoom puesto el lienzo es mas ancho que su hueco, a proposito:
+    // entonces se arrastra con el dedo.
+    const factor = caja.classList.contains('zoom') ? 1.95 : 1;
+
+    // Que quepa por los dos lados, sin deformar la proporcion de la oficina.
+    let anchoCss = Math.min(anchoHueco, altoHueco * (COLS / FILAS)) * factor;
+    anchoCss = Math.max(320, anchoCss);
+
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    const ancho = Math.round(anchoCss * dpr);
+    const alto = Math.round(ancho * (FILAS / COLS));
+
+    const firma = `${ancho}x${alto}`;
+    if (this._ultimoTamano === firma) return;
+    this._ultimoTamano = firma;
+
+    this.canvas.width = ancho;
+    this.canvas.height = alto;
+    this.escala = ancho / (COLS * S.TAM);
+    // Al cambiar el tamano hay que volver a apagarlo: se reinicia solo.
+    this.ctx.imageSmoothingEnabled = false;
   }
 
   /** Definicion de una habitacion por id. */
@@ -284,7 +341,7 @@ export class Renderizador {
     // ------------------------------------------------ 2. lienzo
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.setTransform(ESCALA, 0, 0, ESCALA, 0, 0);
+    ctx.setTransform(this.escala, 0, 0, this.escala, 0, 0);
     ctx.imageSmoothingEnabled = false;
 
     ctx.drawImage(this._crearAmbiente(), 0, 0);
@@ -357,20 +414,49 @@ export class Renderizador {
     }
 
     // ------------------------------------------------ 6. interfaz
+    //
+    // OJO con el orden: las habitaciones cerradas se pintan en el paso 4, asi
+    // que si aqui pintaramos las etiquetas y los bocadillos de todo el mundo,
+    // los que estuvieran detras de una puerta cerrada se verian A TRAVES de
+    // ella. Parecia que los empleados se colaban en salas sin comprar. Por eso
+    // se salta a quien este tapado.
     for (const agente of estado.agentes) {
       if (agente.dimitido) continue;
-      this._dibujarEtiqueta(ctx, agente, this._visualDe(agente, salas));
+      const v = this._visualDe(agente, salas);
+      if (this._tapadoPorSalaCerrada(v.x, v.y, salas)) continue;
+      this._dibujarEtiqueta(ctx, agente, v);
     }
     for (const agente of estado.agentes) {
       if (agente.dimitido || !agente.bocadillo) continue;
-      this._dibujarBocadillo(ctx, agente, this._visualDe(agente, salas));
+      const v = this._visualDe(agente, salas);
+      if (this._tapadoPorSalaCerrada(v.x, v.y, salas)) continue;
+      this._dibujarBocadillo(ctx, agente, v);
     }
     for (const agente of estado.agentes) {
       const tipo = emoteDe(agente);
       if (!tipo) continue;
       const v = this._visualDe(agente, salas);
+      if (this._tapadoPorSalaCerrada(v.x, v.y, salas)) continue;
       S.dibujarEmote(ctx, v.x + 13, v.y - S.ALTO_PJ * 2 - 24, tipo, this.t);
     }
+  }
+
+  /**
+   * ¿Ese punto cae dentro de una habitacion que no esta comprada?
+   *
+   * Sirve para no pintar nada encima de las salas cerradas. Los empleados SI
+   * pueden cruzar por delante de una puerta cerrada de camino a otro sitio: lo
+   * que no puede es que se les vea la cara a traves de ella.
+   */
+  _tapadoPorSalaCerrada(x, y, salas) {
+    for (const sala of this.habitaciones) {
+      if (salas.includes(sala.id)) continue;
+      if (x >= sala.x * S.TAM && x <= (sala.x + sala.ancho) * S.TAM &&
+          y >= sala.y * S.TAM && y <= (sala.y + sala.alto) * S.TAM) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Una habitacion sin comprar: a oscuras, con candado y precio. */
@@ -380,8 +466,29 @@ export class Renderizador {
     const w = sala.ancho * S.TAM;
     const h = sala.alto * S.TAM;
 
-    ctx.fillStyle = 'rgba(8,10,18,0.82)';
+    // Opaco, no semitransparente: una puerta cerrada no deja ver lo que hay
+    // dentro. Con algo de transparencia se le veian las caras a los empleados
+    // que pasaban por detras, y parecia que se colaban.
+    ctx.fillStyle = '#0a0d14';
     ctx.fillRect(x, y, w, h);
+
+    // Una rejilla muy tenue, para que se vea que ahi dentro hay una sala y no
+    // un agujero negro.
+    ctx.strokeStyle = 'rgba(64,76,100,0.20)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < sala.ancho; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + i * S.TAM, y);
+      ctx.lineTo(x + i * S.TAM, y + h);
+      ctx.stroke();
+    }
+    for (let j = 1; j < sala.alto; j++) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + j * S.TAM);
+      ctx.lineTo(x + w, y + j * S.TAM);
+      ctx.stroke();
+    }
+
     ctx.strokeStyle = 'rgba(120,130,160,0.35)';
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 6]);

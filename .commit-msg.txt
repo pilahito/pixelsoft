@@ -1,0 +1,34 @@
+Arreglados el texto borroso, las salas cerradas y tres botones rotos
+
+Lo que ha dicho el jefe, punto por punto:
+
+1. EL TEXTO SE VEIA BORROSO (en Windows y en Android).
+   El canvas media siempre 1920x1280 y el navegador lo ENCOGIA para que
+   cupiera en su hueco. Los carteles de los nombres y los bocadillos van
+   dibujados DENTRO del canvas, asi que al encogerlo acababan hechos
+   papilla. Ahora el canvas mide justo lo que ocupa en pantalla
+   multiplicado por la densidad de pantalla, o sea un pixel de canvas por
+   pixel fisico. Se recalcula al girar el movil y al cambiar el zoom.
+
+2. LOS PERSONAJES SE COLABAN EN SALAS SIN COMPRAR.
+   En realidad no se colaban: lo que pasaba es que las salas cerradas se
+   pintaban con un oscurecido al 82% y, encima, las etiquetas y los
+   bocadillos se pintaban DESPUES. Resultado: se les veia la cara a
+   traves de la puerta. Ahora las salas cerradas son opacas, llevan una
+   rejilla tenue para que no parezcan agujeros, y a quien esta detras de
+   una puerta cerrada no se le pinta ni el nombre ni el bocadillo.
+
+3. TRES BOTONES NO HACIAN NADA ("Poder desconocido").
+   El HTML decia data-dios="alquiler", "arreglar" y "romper", pero el
+   motor implementa "subir_alquiler", "arreglar_ordenador" y
+   "romper_ordenador". Ahora coinciden. (Los otros 11 si cuadraban.)
+
+4. AL ACTIVAR LA IA, LA PARTIDA SE QUEDABA CONGELADA AL ARRANCAR.
+   Si la ultima vez elegiste la IA del movil, al abrir el juego se
+   esperaba a que cargara el modelo ANTES de empezar: pantalla en negro y
+   sin explicar nada. Ahora el juego arranca enseguida con el cerebro
+   simulado y el modelo se carga por detras; cuando esta listo, los
+   empleados cambian solos.
+
+5. SONIDITOS: sintetizador de 8 bits con Web Audio, sin un solo fichero
+   de audio. Un "pi" por empleado que habla y un ruido propio por poder.

@@ -841,6 +841,46 @@ async function prepararIA() {
   }
 }
 
+/**
+ * Carga la IA del movil SIN bloquear el arranque del juego.
+ *
+ * El juego ya esta corriendo con el cerebro simulado cuando esto empieza. Va
+ * por detras, y solo cuando el modelo esta cargado cambia el cerebro de los
+ * empleados. Si algo falla, se queda el simulado y el jugador no nota nada
+ * raro: como mucho, un aviso en el panel.
+ */
+async function cargarIADeFondo() {
+  try {
+    const modulo = await import('./motor/cerebro-onnx.js');
+    cerebroONNX = new modulo.CerebroONNX();
+    cerebroONNX.alProgresar(pintarEstadoIA);
+
+    const guardado = localStorage.getItem('pixelsoft.modelo');
+    const bien = await cerebroONNX.preparar(guardado || undefined);
+
+    if (!bien) {
+      // No se ha podido: se vuelve al simulado y que no se entere nadie mas.
+      guardarEleccionCerebro('simulado');
+      pintarCerebroActual();
+      ajustarCintaLocal();
+      return;
+    }
+
+    if (mundoLocal) {
+      mundoLocal.cerebro = cerebroONNX;
+      mundoLocal.registrar('sistema', 'La IA del movil ha acabado de cargar. Los empleados ya piensan con el modelo de verdad.');
+      mundoLocal._emitir();
+    }
+    pintarCerebroActual();
+    ajustarCintaLocal();
+    pintarEstadoIA(cerebroONNX.info());
+  } catch (_) {
+    guardarEleccionCerebro('simulado');
+    pintarCerebroActual();
+    ajustarCintaLocal();
+  }
+}
+
 /** Vuelve al cerebro simulado y suelta el modelo de la memoria. */
 async function liberarIA() {
   if (cerebroONNX) await cerebroONNX.descargar();
@@ -1079,6 +1119,9 @@ function ponerZoom(activo) {
   cajaLienzo.classList.toggle('zoom', activo);
   botonZoom.classList.toggle('activo', activo);
   botonZoom.title = activo ? 'Alejar (ver toda la oficina)' : 'Acercar (ver a los empleados)';
+  // El lienzo cambia de tamano con el zoom, asi que hay que recalcular su
+  // resolucion o el texto se vuelve a ver borroso.
+  if (renderizador) renderizador.ajustarTamano();
 }
 
 if (esMovil()) ponerZoom(true);
@@ -1094,7 +1137,7 @@ function centrarEnEmpleado(id) {
   if (!v) return;
   const rect = lienzo.getBoundingClientRect();
   if (!rect.width) return;
-  const x = v.x * 2 * (rect.width / lienzo.width);
+  const x = v.x * renderizador.escala * (rect.width / lienzo.width);
   cajaLienzo.scrollLeft = Math.max(0, x - cajaLienzo.clientWidth / 2);
 }
 
@@ -1137,7 +1180,7 @@ function centrarEnSala(id) {
 
   // Centro de la sala, de casillas a pixeles de pantalla.
   const centroMundo = (sala.x + sala.ancho / 2) * S.TAM;
-  const x = centroMundo * 2 * (rect.width / lienzo.width);
+  const x = centroMundo * renderizador.escala * (rect.width / lienzo.width);
   cajaLienzo.scrollLeft = Math.max(0, x - cajaLienzo.clientWidth / 2);
 
   document.querySelectorAll('.chip-sala').forEach((b) => b.classList.toggle('activa', b.dataset.sala === id));
@@ -1154,8 +1197,8 @@ lienzo.addEventListener('click', (ev) => {
   if (!renderizador || !estado) return;
   const rect = lienzo.getBoundingClientRect();
   // Convertir coordenadas de pantalla a coordenadas de mundo del canvas.
-  const x = (ev.clientX - rect.left) / rect.width * (lienzo.width / 2);
-  const y = (ev.clientY - rect.top) / rect.height * (lienzo.height / 2);
+  const x = (ev.clientX - rect.left) / rect.width * (lienzo.width / renderizador.escala);
+  const y = (ev.clientY - rect.top) / rect.height * (lienzo.height / renderizador.escala);
 
   let elegido = null;
   let mejor = 1000;
@@ -1210,6 +1253,17 @@ async function iniciar() {
   }
 
   renderizador = new Renderizador(lienzo, configLocal);
+  renderizador.ajustarTamano();
+
+  // Al girar el movil o cambiar el tamano de la ventana hay que rehacerlo, o
+  // el canvas se queda con la resolucion vieja y el texto se emborrona.
+  let temporizadorTamano = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(temporizadorTamano);
+    temporizadorTamano = setTimeout(() => {
+      if (renderizador) renderizador.ajustarTamano();
+    }, 150);
+  });
 
   if (MODO_LOCAL) {
     await iniciarLocal();
@@ -1254,23 +1308,17 @@ async function iniciarLocal() {
     estado = mundoLocal.snapshot();
     ajustarInterfazLocal();
 
-    // Si la ultima vez eligio la IA del movil, se intenta reactivar sola
-    // (el modelo ya esta descargado, asi que es instantaneo).
+    // Si la ultima vez eligio la IA del movil, se reactiva sola... PERO EN
+    // SEGUNDO PLANO.
+    //
+    // Antes esto se esperaba aqui mismo, y era un fallo gordo: si el modelo
+    // no estaba descargado, la partida se quedaba congelada antes de empezar,
+    // con la pantalla en negro, sin explicar nada. Ahora el juego arranca
+    // enseguida con el cerebro simulado y, mientras tanto, el modelo se va
+    // cargando por detras. Cuando esta listo, los empleados cambian solos a la
+    // IA de verdad.
     if (cerebroElegido === 'onnx') {
-      try {
-        const { CerebroONNX } = await import('./motor/cerebro-onnx.js');
-        cerebroONNX = new CerebroONNX();
-        cerebroONNX.alProgresar(pintarEstadoIA);
-        const bien = await cerebroONNX.preparar(localStorage.getItem('pixelsoft.modelo') || undefined);
-        if (bien) {
-          mundoLocal.cerebro = cerebroONNX;
-          estado = mundoLocal.snapshot();
-        } else {
-          guardarEleccionCerebro('simulado');
-        }
-      } catch (_) {
-        guardarEleccionCerebro('simulado');
-      }
+      cargarIADeFondo();
     }
     pintarCerebroActual();
     ajustarCintaLocal();
@@ -1279,7 +1327,9 @@ async function iniciarLocal() {
     // navegador (o desde las pruebas automaticas). No afecta al juego.
     window.__pixelsoft = {
       mundo: () => mundoLocal,
-      cerebro: () => cerebroLocal,
+      // El cerebro que este ACTIVO, no siempre el simulado: si el jugador ha
+      // activado la IA del movil, aqui tiene que salir esa.
+      cerebro: () => (mundoLocal && mundoLocal.cerebro) || cerebroLocal,
       estado: () => estado
     };
 

@@ -37,8 +37,16 @@ public class MainActivity extends Activity {
         ajustes.setSupportZoom(false);
         ajustes.setBuiltInZoomControls(false);
         ajustes.setTextZoom(100);
-        ajustes.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // LOAD_DEFAULT y no LOAD_NO_CACHE: los ficheros del juego los sirve el
+        // interceptor desde los assets (siempre frescos), pero el MODELO de IA
+        // se guarda en la cache del navegador. Con NO_CACHE se volveria a bajar
+        // los 300 MB cada vez, que es justo lo que queremos evitar.
+        ajustes.setCacheMode(WebSettings.LOAD_DEFAULT);
         ajustes.setMediaPlaybackRequiresUserGesture(false);
+
+        // Permite engancharse por USB con las herramientas del navegador
+        // (chrome://inspect) para ver la consola y depurar. Solo por cable.
+        WebView.setWebContentsDebuggingEnabled(true);
 
         web.setBackgroundColor(COLOR_FONDO);
         web.setKeepScreenOn(true);

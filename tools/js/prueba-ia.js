@@ -17,7 +17,7 @@
     setTimeout(() => {
       const sel = document.getElementById('ia-modelo');
       if (sel && sel.options.length) {
-        sel.value = 'HuggingFaceTB/SmolLM2-360M-Instruct';
+        sel.value = 'onnx-community/Qwen2.5-0.5B-Instruct';
         sel.dispatchEvent(new Event('change', { bubbles: true }));
       }
       const preparar = document.getElementById('ia-preparar');
