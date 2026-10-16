@@ -56,6 +56,24 @@ Verás algo así al arrancar:
 
 ---
 
+## Novedades 1.1
+
+- **Vida tipo Sims**: cada empleado tiene hambre, sueño, diversión, higiene y social. Decide solo (utility AI) si come, duerme, se ducha, va al súper, a la cafetería, al parque o al gimnasio. Tiene rasgos de personalidad, habilidades que suben con el uso, inventario, muebles, casa (alquilar o comprar) y amistades.
+- **Empresa**: contratos de clientes con plazo y calidad mínima, árbol de investigación que enseña IA (tokens, temperatura, contexto, cuantización, RAG, fine-tuning), 4 plantas, rival que roba clientes, eventos aleatorios y logros.
+- **Día/noche, clima y estaciones**: lluvia, nieve y tormentas en la oficina.
+- **Música chiptune** generada en el juego (Ajustes → Sonido).
+- **Tutorial** al empezar y **autoguardado** (PC: `~/.pixelsoft/partida.json`; móvil: almacenamiento de la app).
+- **Móvil + LM Studio del PC por wifi** (Cerebro → 🖥️ LM Studio del PC): pon `http://IP-del-PC:1234`, pulsa *Probar conexión*. En LM Studio activa «Serve on Local Network» y «Enable CORS». Si no responde, sigue en modo demo.
+- **IA en el móvil según el hardware**: elige SmolLM2-360M / Qwen2.5-0.5B / Qwen2.5-1.5B según RAM y núcleos, y limita hilos para no calentar. Ajustes → borrar modelos.
+- **Mods** (solo datos, sin código): ver [MODS.md](MODS.md).
+- **Actualizador**: al arrancar y en Ajustes → Buscar actualizaciones. En PC cambia el `.exe` y reinicia; en Android descarga el APK y abre el instalador. La partida y los mods se conservan.
+- Conexión con LM Studio más robusta: reintentos, timeouts cortos al listar modelos, puerto 1234/8080 automático.
+
+![Vida](capturas/v11-vida.png)
+![Empresa](capturas/v11-empresa.png)
+![Ajustes](capturas/v11-ajustes.png)
+![Móvil](capturas/v11-movil.png)
+
 ## 1.5. Compilar el `.exe` y el `.apk`
 
 El juego se puede empaquetar en dos formatos, y los dos scripts están incluidos.

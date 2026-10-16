@@ -119,6 +119,9 @@ function emoteDe(agente) {
   return null;
 }
 
+const EMOJI_LUGAR = { casa: '🏠', super: '🛒', cafeteria: '☕', parque: '🌳', gimnasio: '🏋️' };
+const fueraDeOficina = (a) => !!(a.vida && a.vida.lugar && a.vida.lugar !== 'oficina');
+
 export class Renderizador {
   /**
    * @param {HTMLCanvasElement} canvas
@@ -298,6 +301,29 @@ export class Renderizador {
     return { x: SITIOS.pasillo.x * S.TAM, y: SITIOS.pasillo.y * S.TAM, sentado: false };
   }
 
+  _dibujarCielo(ctx, estado) {
+    const h = (estado.hora || 0) + ((estado.tick || 0) % 1);
+    const W = COLS * S.TAM, H = FILAS * S.TAM;
+    // Oscuridad suave: 0 a mediodia, maxima de madrugada; tonos de atardecer.
+    let osc = 0, color = '10,14,40';
+    if (h >= 20 || h < 6) osc = 0.42;
+    else if (h >= 18) { osc = (h - 18) / 2 * 0.42; color = '60,24,60'; }
+    else if (h < 8) { osc = (8 - h) / 2 * 0.42; color = '40,30,70'; }
+    if (osc > 0) { ctx.fillStyle = `rgba(${color},${osc.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+    const clima = estado.vida && estado.vida.entorno && estado.vida.entorno.clima;
+    if (!clima) return;
+    const lluvia = /🌧️|⛈️/.test(clima), nieve = /❄️/.test(clima);
+    if (!lluvia && !nieve) return;
+    if (!this._gotas) this._gotas = Array.from({ length: 70 }, () => ({ x: Math.random() * W, y: Math.random() * H, v: 0.6 + Math.random() }));
+    ctx.fillStyle = nieve ? 'rgba(240,245,255,.8)' : 'rgba(150,180,255,.45)';
+    for (const g of this._gotas) {
+      g.y += (nieve ? 0.5 : 4) * g.v; g.x += nieve ? Math.sin((this.t / 600) + g.v * 9) * 0.4 : -0.6;
+      if (g.y > H) { g.y = -4; g.x = Math.random() * W; }
+      if (nieve) ctx.fillRect(g.x | 0, g.y | 0, 2, 2); else ctx.fillRect(g.x | 0, g.y | 0, 1, 5);
+    }
+    if (/⛈️/.test(clima) && Math.random() < 0.004) { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(0, 0, W, H); }
+  }
+
   dibujar(estado, dt) {
     this.t += dt;
     const ctx = this.ctx;
@@ -383,7 +409,7 @@ export class Renderizador {
         )
       });
 
-      if (activo && v && v.sentado) {
+      if (activo && v && v.sentado && !fueraDeOficina(agente)) {
         capa.push({ z: (d.my + 1) * S.TAM + 22, f: () => this._dibujarAgente(ctx, agente, v) });
       }
 
@@ -392,7 +418,7 @@ export class Renderizador {
 
     // Empleados de pie o andando
     for (const agente of estado.agentes) {
-      if (agente.dimitido) continue;
+      if (agente.dimitido || fueraDeOficina(agente)) continue;
       const v = this._visualDe(agente, salas);
       if (v.sentado) continue;
       capa.push({ z: v.y, f: () => this._dibujarAgente(ctx, agente, v) });
@@ -413,6 +439,9 @@ export class Renderizador {
       ctx.fillRect(0, 0, COLS * S.TAM, FILAS * S.TAM);
     }
 
+    // ------------------------------------------------ 5b. dia/noche y clima
+    this._dibujarCielo(ctx, estado);
+
     // ------------------------------------------------ 6. interfaz
     //
     // OJO con el orden: las habitaciones cerradas se pintan en el paso 4, asi
@@ -424,6 +453,16 @@ export class Renderizador {
       if (agente.dimitido) continue;
       const v = this._visualDe(agente, salas);
       if (this._tapadoPorSalaCerrada(v.x, v.y, salas)) continue;
+      if (fueraDeOficina(agente)) {
+        // No esta: un cartelito dice donde anda (casa, super, parque...).
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(0,0,0,.55)';
+        ctx.fillRect((v.x | 0) - 26, (v.y | 0) - 26, 52, 14);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`${EMOJI_LUGAR[agente.vida.lugar] || '🚶'} ${agente.nombre}`, v.x | 0, (v.y | 0) - 15);
+        continue;
+      }
       this._dibujarEtiqueta(ctx, agente, v);
     }
     for (const agente of estado.agentes) {

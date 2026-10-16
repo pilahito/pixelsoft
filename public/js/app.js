@@ -9,6 +9,7 @@
 import { Renderizador } from './render.js';
 import * as S from './sprites.js';
 import { sonidos } from './sonidos.js';
+import { VERSION, buscarActualizacion } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -458,6 +459,7 @@ document.addEventListener('click', async (ev) => {
 });
 
 function actualizarPanelActivo() {
+  if (panelActivo === 'vida') actualizarVida();
   if (panelActivo === 'empresa') actualizarEmpresa();
   if (panelActivo === 'empleados') actualizarEmpleados();
   if (panelActivo === 'laboratorio') actualizarLaboratorio();
@@ -474,6 +476,7 @@ document.querySelectorAll('.pestana').forEach((boton) => {
     actualizarPanelActivo();
     if (panelActivo === 'laboratorio') cargarLaboratorio();
     if (panelActivo === 'cerebro') cargarModelos();
+    if (panelActivo === 'ajustes') pintarAjustes();
   });
 });
 
@@ -531,7 +534,9 @@ function tarjetaEmpleado(a) {
       ${barra('energía', a.energia, '#4a9ede')}
       ${barra('habilidad', a.habilidad, '#9a7ae0')}
       ${barra('PC', a.ordenador.salud, a.ordenador.roto ? 'var(--rojo)' : 'var(--verde)')}
+      ${a.vida ? Object.entries(a.vida.necesidades).map(([k, v]) => barra(NOMBRE_NEC[k] || k, v, colorNec(v))).join('') : ''}
     </div>
+    ${a.vida ? `<div class="nota">${(a.vida.rasgos || []).map((r) => `<span class="chip" title="Rasgo de personalidad">${escapar(r)}</span>`).join(' ')} · ${ACT_TXT[a.vida.actividad] || a.vida.actividad} · 💶 ${Math.round(a.vida.dinero)}</div>` : ''}
     <div class="cuenta-fila" style="margin-bottom:7px">
       <span class="k">temperatura ${a.temperatura}</span>
       <span class="v">${escapar(a.modelo)}</span>
@@ -1465,3 +1470,223 @@ function ajustarInterfazLocal() {
 }
 
 iniciar();
+
+
+/* ================================================================ VIDA */
+const NOMBRE_NEC = { hambre: '🍔', sueno: '😴', diversion: '🎮', higiene: '🚿', social: '💬' };
+const NEC_LARGO = { hambre: 'Hambre', sueno: 'Sueño', diversion: 'Diversión', higiene: 'Higiene', social: 'Social' };
+const ACT_TXT = { trabajar: '💻 trabajando', cocinar: '🍳 cocinando', cafeteria: '☕ en la cafetería', comprar: '🛒 de compras',
+  dormir: '😴 durmiendo', ducharse: '🚿 duchándose', parque: '🌳 en el parque', gimnasio: '🏋️ en el gimnasio',
+  charlar: '💬 con amigos', videojuegos: '🎮 jugando', picoteo: '🥨 picoteando' };
+const colorNec = (v) => (v > 60 ? 'var(--verde)' : v > 30 ? 'var(--ambar)' : 'var(--rojo)');
+let vidaAgente = null;
+
+function actualizarVida() {
+  if (!estado || !estado.vida) return;
+  const vivos = estado.agentes.filter((a) => !a.dimitido && a.vida);
+  const sel = $('vida-agente');
+  const ids = vivos.map((a) => a.id).join();
+  if (sel.dataset.ids !== ids) {
+    sel.innerHTML = vivos.map((a) => `<option value="${a.id}">${escapar(a.nombre)}</option>`).join('');
+    sel.dataset.ids = ids;
+    if (vidaAgente) sel.value = vidaAgente;
+  }
+  vidaAgente = sel.value;
+  const a = vivos.find((x) => x.id === vidaAgente);
+  const env = estado.vida.entorno;
+  $('vida-clima').innerHTML = `<span class="chip">${env.noche ? '🌙 Noche' : '🌞 Día'}</span> <span class="chip">${escapar(env.estacionNombre)} · día ${env.diaEstacion}/7</span> <span class="chip">Tiempo: ${env.clima}</span>`;
+  if (!a) return;
+  const v = a.vida;
+  const amigos = Object.entries(v.amistades || {}).map(([id, n]) => {
+    const o = estado.agentes.find((x) => x.id === id);
+    return o ? `<span class="chip" title="Amistad ${Math.round(n)}">${n >= 50 ? '💛' : n >= 15 ? '🙂' : '😐'} ${escapar(o.nombre)} ${Math.round(n)}</span>` : '';
+  }).join(' ');
+  conScroll($('vida-ficha'), () => {
+    $('vida-ficha').innerHTML = `
+      <div class="hud-necesidades">${Object.entries(v.necesidades).map(([k, n]) => `
+        <div class="hud-nec" title="${NEC_LARGO[k]}: ${Math.round(n)}/100"><span>${NOMBRE_NEC[k]}</span>
+        <div class="barra-pista"><div class="barra-relleno" style="width:${n}%;background:${colorNec(n)}"></div></div></div>`).join('')}</div>
+      <p class="nota">${ACT_TXT[v.actividad] || v.actividad} · ${escapar(estado.vida.lugares[v.lugar] ? estado.vida.lugares[v.lugar].nombre : v.lugar)} · 💶 ${Math.round(v.dinero)} EUR</p>
+      <p class="nota">Rasgos: ${v.rasgos.map((r) => `<span class="chip">${escapar(r)}</span>`).join(' ')}</p>
+      <p class="nota">Habilidades: ${Object.entries(v.habilidades).map(([k, n]) => `<span class="chip" title="XP ${v.xp[k] || 0}/${n * 12}">${k} ${n}</span>`).join(' ')}</p>
+      <p class="nota">Inventario: ${Object.entries(v.inventario).filter(([, n]) => n > 0).map(([k, n]) => `${escapar(k)} ×${n}`).join(', ') || 'vacío'} · Muebles: ${v.muebles.map(escapar).join(', ') || 'ninguno'}</p>
+      <p class="nota">Amistades: ${amigos || 'aún nadie'}</p>`;
+  });
+  const lugares = estado.vida.lugares;
+  $('vida-pueblo').innerHTML = Object.entries(lugares).map(([id, l]) => {
+    const aqui = vivos.filter((x) => x.vida.lugar === id);
+    return `<div class="lugar ${env.noche ? 'noche' : ''}"><div class="lugar-emoji">${l.emoji}</div><div>${escapar(l.nombre.replace(/^\S+\s/, ''))}</div><div class="lugar-gente">${aqui.map((x) => escapar(x.nombre)).join(', ') || '—'}</div></div>`;
+  }).join('');
+  $('vida-tienda').innerHTML = estado.vida.tienda.map((o) => `<div class="pr-item"><div>${escapar(o.nombre)}<br><span class="nota">${o.precio} EUR · ${o.tipo}</span></div><button class="btn" data-vida="comprar_objeto" data-id="${o.id}" ${v.dinero < o.precio ? 'disabled' : ''}>Comprar</button></div>`).join('');
+  $('vida-casas').innerHTML = estado.vida.casas.map((c) => {
+    const actual = v.casa === c.id;
+    return `<div class="pr-item ${actual ? 'hecho' : ''}"><div><strong>${actual ? '🏠 ' : ''}${escapar(c.nombre)}</strong><br><span class="nota">${c.alquiler} EUR/día · ${c.huecos} huecos para muebles${c.compra ? ` · compra ${c.compra} EUR` : ''}${actual && v.casaPropia ? ' · ¡en propiedad!' : ''}</span></div>
+      <div>${actual ? '' : `<button class="btn" data-vida="cambiar_casa" data-id="${c.id}">Alquilar</button>`} ${c.compra && !(actual && v.casaPropia) ? `<button class="btn" data-vida="comprar_casa" data-id="${c.id}" ${v.dinero < c.compra ? 'disabled' : ''}>Comprar</button>` : ''}</div></div>`;
+  }).join('');
+}
+$('vida-agente') && $('vida-agente').addEventListener('change', () => { vidaAgente = $('vida-agente').value; actualizarVida(); });
+document.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('[data-vida]');
+  if (!b || b.disabled) return;
+  await enviarDios(b.dataset.vida, { id: b.dataset.id, agenteId: vidaAgente });
+});
+
+/* ============================================================== MODAL */
+function modal(html, botones) {
+  $('modal-cuerpo').innerHTML = html;
+  $('modal-botones').innerHTML = '';
+  for (const [texto, fn, clase] of botones) {
+    const b = document.createElement('button');
+    b.className = 'btn ' + (clase || '');
+    b.textContent = texto;
+    b.onclick = () => { $('modal').hidden = true; fn && fn(); };
+    $('modal-botones').appendChild(b);
+  }
+  $('modal').hidden = false;
+}
+
+/* ========================================================== TUTORIAL */
+const PASOS_TUTORIAL = [
+  ['👋 Bienvenido a PixelSoft', 'Diriges una empresa cuyos empleados son IAs. Ellos trabajan, comen, duermen y hacen amigos solos.'],
+  ['⚡ Poderes', 'En «Poderes» cambias el precio, hablas con ellos o les rompes el PC. Reaccionan con la IA que tengas.'],
+  ['🏢 Empresa', 'Acepta contratos de clientes, investiga cómo funciona la IA y mudaos a plantas más grandes. Cuidado con el rival.'],
+  ['🏘️ Vida', 'Cada empleado tiene necesidades (hambre, sueño, diversión, higiene, social). Con su sueldo compra comida, muebles y casa.'],
+  ['⚙️ Ajustes', 'Mods, actualizaciones, música y modelos del móvil. La partida se guarda sola. ¡A jugar!']
+];
+function tutorial(paso = 0) {
+  if (paso >= PASOS_TUTORIAL.length) { try { localStorage.setItem('pixelsoft.tutorial', 'hecho'); } catch (_) {} return; }
+  const [t, d] = PASOS_TUTORIAL[paso];
+  modal(`<h3>${t}</h3><p>${d}</p><p class="nota">${paso + 1}/${PASOS_TUTORIAL.length}</p>`,
+    [['Saltar', () => tutorial(99)], [paso === PASOS_TUTORIAL.length - 1 ? '¡Empezar!' : 'Siguiente ›', () => tutorial(paso + 1), 'bonito']]);
+}
+setTimeout(() => { try { if (localStorage.getItem('pixelsoft.tutorial') !== 'hecho' && !new URLSearchParams(location.search).has('panel')) tutorial(0); } catch (_) {} }, 1200);
+
+/* ======================================================= ACTUALIZADOR */
+const EN_ANDROID = typeof window.PixelSoftAndroid !== 'undefined';
+async function comprobarActualizacion(manual) {
+  const est = $('act-estado');
+  if (manual && est) est.textContent = '⏳ Buscando…';
+  try {
+    if (!manual && localStorage.getItem('pixelsoft.ultimaComprobacion') > Date.now() - 6 * 3600e3) return;
+    localStorage.setItem('pixelsoft.ultimaComprobacion', String(Date.now()));
+  } catch (_) {}
+  let r;
+  try { r = await buscarActualizacion(); } catch (e) { if (est) est.textContent = '❌ No pude consultar GitHub: ' + e.message; return; }
+  let omitida = null; try { omitida = localStorage.getItem('pixelsoft.omitir'); } catch (_) {}
+  if (!r.nueva) { if (est) est.textContent = `✅ Tienes la última versión (${VERSION}).`; return; }
+  if (!manual && omitida === r.version) return;
+  if (est) est.textContent = `Hay una versión nueva: ${r.version}.`;
+  const notas = escapar(r.notas).slice(0, 1500).replace(/\n/g, '<br>');
+  modal(`<h3>🔄 PixelSoft ${escapar(r.version)} disponible</h3><p class="nota">Tienes la ${VERSION}. Tu partida y tus mods se conservan.</p><div class="changelog">${notas || 'Sin notas.'}</div>`, [
+    ['Omitir esta versión', () => { try { localStorage.setItem('pixelsoft.omitir', r.version); } catch (_) {} }],
+    ['Más tarde', null],
+    ['Actualizar ahora', () => instalarActualizacion(r), 'bonito']
+  ]);
+}
+async function instalarActualizacion(r) {
+  try { localStorage.setItem('pixelsoft.partida', JSON.stringify(mundoLocal ? mundoLocal.exportarPartida() : null)); } catch (_) {}
+  if (EN_ANDROID) {
+    if (!r.apk) return brindis('Esa versión no trae APK.', true);
+    window.PixelSoftAndroid.abrirFuera(r.apk);
+    brindis('Descargando el APK. Cuando acabe, ábrelo y pulsa «Actualizar».');
+    return;
+  }
+  if (!MODO_LOCAL && r.exe) {
+    try { const x = await pedir('/api/actualizar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: r.exe }) }); brindis(x.mensaje); return; }
+    catch (e) { brindis(e.message, true); }
+  }
+  window.open(r.url, '_blank', 'noopener');
+}
+$('act-buscar') && $('act-buscar').addEventListener('click', () => comprobarActualizacion(true));
+setTimeout(() => comprobarActualizacion(false), 4000);
+
+/* =============================================================== MODS */
+function leerMods() { try { return JSON.parse(localStorage.getItem('pixelsoft.mods') || '[]'); } catch (_) { return []; } }
+function guardarMods(l) { try { localStorage.setItem('pixelsoft.mods', JSON.stringify(l)); } catch (_) { brindis('No hay sitio para guardar más mods.', true); } }
+async function aplicarModsGuardados() {
+  const mods = leerMods();
+  let avisos = [];
+  try {
+    if (MODO_LOCAL) {
+      const { aplicarMods } = await import('./motor/mods.js');
+      avisos = aplicarMods(mods);
+      mundoLocal && mundoLocal._emitir();
+    } else {
+      const r = await pedir('/api/mods', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mods: mods.map(({ recursos, ...x }) => x) }) });
+      avisos = r.avisos || [];
+    }
+  } catch (e) { avisos = ['Error aplicando mods: ' + e.message]; }
+  if ($('mod-avisos')) $('mod-avisos').innerHTML = avisos.map((a) => '⚠️ ' + escapar(a)).join('<br>');
+}
+function pintarMods() {
+  const l = leerMods();
+  $('mod-lista').innerHTML = l.length ? l.map((m, i) => `<div class="pr-item ${m.activo ? '' : 'hecho'}"><div>${m.recursos && m.recursos['icono.png'] ? `<img src="${m.recursos['icono.png']}" class="mod-icono" alt="">` : '🧩'} <strong>${escapar(m.nombre)}</strong> v${escapar(m.version)} · ${escapar(m.autor)}<br><span class="nota">${escapar(m.descripcion)}</span></div>
+    <div class="mod-botones"><button class="btn" data-mod="subir" data-i="${i}" title="Cargar antes">▲</button><button class="btn" data-mod="bajar" data-i="${i}" title="Cargar después">▼</button>
+    <button class="btn" data-mod="activo" data-i="${i}">${m.activo ? 'Desactivar' : 'Activar'}</button><button class="btn" data-mod="quitar" data-i="${i}">🗑️</button></div></div>`).join('') : '<p class="nota">No tienes mods. Prueba mods/ejemplo-cafeteria.zip.</p>';
+}
+$('mod-archivo') && $('mod-archivo').addEventListener('change', async (ev) => {
+  const f = ev.target.files[0];
+  ev.target.value = '';
+  if (!f) return;
+  try {
+    if (f.size > 10 * 1024 * 1024) throw new Error('El mod pesa más de 10 MB.');
+    const { leerZip } = await import('./motor/mods.js');
+    const mod = await leerZip(await f.arrayBuffer());
+    const l = leerMods().filter((x) => x.id !== mod.id);
+    l.push({ ...mod, activo: true });
+    guardarMods(l);
+    brindis(`Mod instalado: ${mod.nombre}`);
+  } catch (e) { brindis('No pude instalar el mod: ' + e.message, true); }
+  pintarMods(); aplicarModsGuardados();
+});
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-mod]');
+  if (!b) return;
+  const l = leerMods(); const i = Number(b.dataset.i);
+  if (b.dataset.mod === 'activo') l[i].activo = !l[i].activo;
+  if (b.dataset.mod === 'quitar') l.splice(i, 1);
+  if (b.dataset.mod === 'subir' && i > 0) [l[i - 1], l[i]] = [l[i], l[i - 1]];
+  if (b.dataset.mod === 'bajar' && i < l.length - 1) [l[i + 1], l[i]] = [l[i], l[i + 1]];
+  guardarMods(l); pintarMods(); aplicarModsGuardados();
+});
+setTimeout(aplicarModsGuardados, 1500);
+
+/* ============================================================ AJUSTES */
+async function pintarAjustes() {
+  $('act-version').textContent = `Versión instalada: ${VERSION}${EN_ANDROID ? ' (Android)' : ''}`;
+  pintarMods();
+  try {
+    const { perfilHardware } = await import('./motor/cerebro-onnx.js');
+    const h = perfilHardware();
+    $('aj-hw').textContent = `Tu equipo: ~${h.ram} GB RAM, ${h.nucleos} núcleos → modelo recomendado ${h.recomendado.split('/')[1]}, ${h.hilos} hilos (para no calentar el móvil).`;
+  } catch (_) { $('aj-hw').textContent = ''; }
+  $('aj-musica').textContent = 'Música: ' + (sonidos.musica ? 'sí' : 'no');
+}
+$('aj-borrar-modelos') && $('aj-borrar-modelos').addEventListener('click', () => {
+  modal('<h3>🗑️ Borrar modelos</h3><p>Se borran los modelos de IA descargados en este dispositivo. Tu partida no se toca.</p>', [
+    ['Cancelar', null],
+    ['Borrar', async () => {
+      try {
+        if (cerebroONNX) await cerebroONNX.descargar();
+        const { borrarModelosDescargados } = await import('./motor/cerebro-onnx.js');
+        const n = await borrarModelosDescargados();
+        $('aj-modelos-estado').textContent = `✅ Borrado (${n} almacén/es). Se usa el cerebro simulado.`;
+        await liberarIA();
+      } catch (e) { $('aj-modelos-estado').textContent = '❌ ' + e.message; }
+    }, 'peligro']
+  ]);
+});
+$('aj-musica') && $('aj-musica').addEventListener('click', () => { despertarSonido(); sonidos.alternarMusica(); pintarAjustes(); });
+$('aj-tutorial') && $('aj-tutorial').addEventListener('click', () => tutorial(0));
+$('aj-nueva') && $('aj-nueva').addEventListener('click', () => modal('<h3>¿Partida nueva?</h3><p>Se perderá la partida actual.</p>', [
+  ['Cancelar', null],
+  ['Sí, empezar de cero', async () => { try { localStorage.removeItem('pixelsoft.partida'); } catch (_) {} await pedir('/api/reiniciar', { method: 'POST' }); brindis('Partida nueva.'); }, 'peligro']
+]));
+
+// ?panel=vida abre directamente esa pestaña (enlaces directos y capturas).
+{
+  const p = new URLSearchParams(location.search).get('panel');
+  const b = p && document.querySelector(`.pestana[data-panel="${CSS.escape(p)}"]`);
+  if (b) setTimeout(() => b.click(), 900);
+  if (new URLSearchParams(location.search).has('tutorial')) setTimeout(() => tutorial(0), 1300);
+}

@@ -1,0 +1,23 @@
+{
+  "id": "ejemplo-cafeteria",
+  "nombre": "Cafetería deluxe (ejemplo)",
+  "version": "1.0.0",
+  "autor": "pilahito",
+  "descripcion": "Mod de ejemplo: añade muebles, comida, un evento, clientes y una investigación.",
+  "contenido": {
+    "objetos": [
+      { "id": "cafetera_italiana", "nombre": "☕ Cafetera italiana", "precio": 90, "tipo": "mueble", "bono": { "sueno": 1.15 } },
+      { "id": "pizza", "nombre": "🍕 Pizza (4 raciones)", "precio": 22, "tipo": "consumible", "cantidad": 4 },
+      { "id": "sudadera", "nombre": "🧥 Sudadera PixelSoft", "precio": 45, "tipo": "ropa", "moral": 6 }
+    ],
+    "eventos": [
+      { "id": "hackathon", "texto": "🏆 ¡Ganáis un hackathon local! +300 EUR y +reputación.", "probabilidad": 0.01, "efectos": { "dinero": 300, "reputacion": 4 } }
+    ],
+    "clientes": ["Bar Manolo", "Festival indie"],
+    "trabajos": ["recomendador de cafés"],
+    "investigacion": [
+      { "id": "prompting", "nombre": "Prompt engineering", "coste": 400, "requiere": ["tokens"], "efecto": "solo enseña", "leccion": "Cómo pides importa: ejemplos, formato y rol cambian mucho la respuesta." }
+    ],
+    "textos": { "Supermercado": "Súper" }
+  }
+}

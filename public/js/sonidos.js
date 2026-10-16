@@ -46,6 +46,7 @@ class Sonidos {
 
     try {
       this.activo = localStorage.getItem('pixelsoft.sonido') !== 'no';
+      this.musica = localStorage.getItem('pixelsoft.musica') === 'si';
     } catch (_) { /* modo privado */ }
   }
 
@@ -62,6 +63,7 @@ class Sonidos {
         this.ctx = new Ctor();
       }
       if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (this.musica && !this._musicaT) setTimeout(() => this._arrancarMusica(), 0);
     } catch (_) { /* sin audio, el juego funciona igual */ }
   }
 
@@ -70,6 +72,41 @@ class Sonidos {
     try { localStorage.setItem('pixelsoft.sonido', this.activo ? 'si' : 'no'); } catch (_) { /* da igual */ }
     if (this.activo) this.desbloquear();
   }
+
+  /**
+   * Musica chiptune generada al vuelo (sin ficheros, sin licencias): una
+   * progresion I-V-vi-IV con bajo y arpegio muy suave.
+   */
+  alternarMusica() {
+    this.musica = !this.musica;
+    try { localStorage.setItem('pixelsoft.musica', this.musica ? 'si' : 'no'); } catch (_) {}
+    if (this.musica) this._arrancarMusica(); else this._pararMusica();
+  }
+
+  _arrancarMusica() {
+    this.desbloquear();
+    if (!this.ctx || this._musicaT) return;
+    const acordes = [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]];
+    const f = (n) => 440 * Math.pow(2, (n - 69) / 12);
+    let paso = 0;
+    const nota = (frec, ini, dur, tipo, vol) => {
+      const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+      o.type = tipo; o.frequency.value = frec;
+      g.gain.setValueAtTime(0, ini); g.gain.linearRampToValueAtTime(vol * this.volumen, ini + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ini + dur);
+      o.connect(g).connect(this.ctx.destination); o.start(ini); o.stop(ini + dur + 0.05);
+    };
+    this._musicaT = setInterval(() => {
+      if (!this.ctx || document.hidden) return;
+      const t = this.ctx.currentTime + 0.05;
+      const ac = acordes[Math.floor(paso / 8) % 4];
+      if (paso % 8 === 0) nota(f(ac[0] - 24), t, 1.6, 'triangle', 0.09);
+      nota(f(ac[paso % 3] + (paso % 8 > 4 ? 12 : 0)), t, 0.25, 'square', 0.025);
+      paso++;
+    }, 220);
+  }
+
+  _pararMusica() { clearInterval(this._musicaT); this._musicaT = null; }
 
   /** Toca un sonido por su nombre. Nunca lanza: si falla, se queda callado. */
   tocar(nombre) {

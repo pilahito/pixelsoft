@@ -83,9 +83,11 @@
     <nav class="pestanas">
       <button class="pestana activa" data-panel="poderes">⚡ Poderes</button>
       <button class="pestana" data-panel="empresa">🏢 Empresa</button>
+      <button class="pestana" data-panel="vida">🏘️ Vida</button>
       <button class="pestana" data-panel="empleados">👤 Empleados</button>
       <button class="pestana" data-panel="laboratorio">🧠 Laboratorio IA</button>
       <button class="pestana" data-panel="cerebro">✏️ Cerebro</button>
+      <button class="pestana" data-panel="ajustes">⚙️ Ajustes</button>
     </nav>
 
     <!-- ------------------------------------------------------ PODERES -->
@@ -218,7 +220,51 @@
       <div class="bloque"><h3>🏢 Plantas de la oficina</h3><div id="pr-plantas" class="pr-lista"></div></div>
       <div class="bloque"><h3>🥊 Rival</h3><div id="pr-rival"></div></div>
       <div class="bloque"><h3>🏆 Logros</h3><div id="pr-logros" class="pr-logros"></div></div>
-      <div class="bloque"><h3>📜 Créditos</h3><p class="nota">PixelSoft por pilahito. Modelos en el móvil: Qwen2.5 (Apache-2.0, Alibaba) y SmolLM2 (Apache-2.0, Hugging Face) vía Transformers.js (Apache-2.0) y ONNX Runtime Web (MIT). Lista completa en CREDITS.md.</p></div>
+      <div class="bloque"><h3>📜 Créditos</h3><p class="nota">PixelSoft por pilahito. Modelos en el móvil: Qwen2.5 (Apache-2.0, Alibaba) y SmolLM2 (Apache-2.0, Hugging Face) vía Transformers.js (Apache-2.0) y ONNX Runtime Web (MIT). Música y efectos generados en el propio juego. Lista completa en CREDITS.md.</p></div>
+    </div>
+
+    <!-- --------------------------------------------------------- VIDA -->
+    <div class="panel" id="panel-vida">
+      <div class="bloque"><div id="vida-clima" class="vida-clima"></div></div>
+      <div class="bloque">
+        <label class="campo"><span>Empleado</span><select id="vida-agente"></select></label>
+        <div id="vida-ficha"></div>
+      </div>
+      <div class="bloque"><h3>🗺️ Pueblo</h3><div id="vida-pueblo" class="vida-pueblo"></div></div>
+      <div class="bloque"><h3>🛒 Tienda</h3><p class="nota">Paga el empleado con su sueldo.</p><div id="vida-tienda" class="pr-lista"></div></div>
+      <div class="bloque"><h3>🏠 Casas</h3><div id="vida-casas" class="pr-lista"></div></div>
+    </div>
+
+    <!-- ------------------------------------------------------ AJUSTES -->
+    <div class="panel" id="panel-ajustes">
+      <div class="bloque">
+        <h3>🔄 Actualizaciones</h3>
+        <p class="nota" id="act-version"></p>
+        <button class="btn" id="act-buscar">Buscar actualizaciones</button>
+        <p class="nota" id="act-estado"></p>
+      </div>
+      <div class="bloque">
+        <h3>🧩 Mods</h3>
+        <p class="nota">Solo datos e imágenes/sonidos: un mod nunca ejecuta código. Se guardan aparte y sobreviven a las actualizaciones. Guía: MODS.md.</p>
+        <label class="btn" style="display:inline-block">📦 Instalar .zip<input type="file" id="mod-archivo" accept=".zip,application/zip" hidden></label>
+        <div id="mod-lista" class="pr-lista" style="margin-top:8px"></div>
+        <p class="nota" id="mod-avisos"></p>
+      </div>
+      <div class="bloque">
+        <h3>🧠 Modelos descargados en el móvil</h3>
+        <p class="nota" id="aj-hw"></p>
+        <button class="btn" id="aj-borrar-modelos">🗑️ Borrar modelos descargados</button>
+        <p class="nota" id="aj-modelos-estado"></p>
+      </div>
+      <div class="bloque">
+        <h3>🎵 Sonido</h3>
+        <button class="btn" id="aj-musica">Música: no</button>
+      </div>
+      <div class="bloque">
+        <h3>🎓 Tutorial</h3>
+        <button class="btn" id="aj-tutorial">Ver el tutorial otra vez</button>
+        <button class="btn" id="aj-nueva">Empezar partida nueva</button>
+      </div>
     </div>
 
     <!-- ------------------------------------------------------ CEREBRO -->
@@ -310,5 +356,6 @@
 <div class="brindis" id="brindis"></div>
 
 <script type="module" src="js/app.js"></script>
+  <div id="modal" class="modal" hidden><div class="modal-caja"><div id="modal-cuerpo"></div><div id="modal-botones" class="rejilla-acciones"></div></div></div>
 </body>
 </html>

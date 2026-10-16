@@ -3,6 +3,9 @@ package com.pixelsoft.juego;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.os.Bundle;
+import android.content.Intent;
+import android.net.Uri;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
@@ -53,6 +56,21 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(COLOR_FONDO);
         web.setKeepScreenOn(true);
         web.setWebViewClient(new ClienteWeb(this));
+
+        // Puente minimo para el actualizador: solo abre enlaces https de GitHub
+        // fuera del juego (el navegador descarga el APK y Android lo instala
+        // encima, con la misma firma, sin borrar la partida).
+        web.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void abrirFuera(String url) {
+                if (url == null || !url.startsWith("https://github.com/pilahito/pixelsoft/")) return;
+                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+            }
+            @JavascriptInterface
+            public String version() { return "1.1.0"; }
+        }, "PixelSoftAndroid");
 
         setContentView(web);
         // ?local fuerza el modo autonomo (motor y cerebro simulado dentro del

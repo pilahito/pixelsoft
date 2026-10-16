@@ -38,10 +38,10 @@ export const LOGROS = [
   { id: 'superviviente', nombre: 'Sobrevives 30 días', cond: (m) => m.dia >= 30 }
 ];
 
-const CLIENTES = ['Panadería Paco', 'Ayuntamiento', 'Startup cripto', 'Clínica dental', 'Club de fútbol', 'Tienda de cómics', 'Banco Pixel', 'Academia de idiomas'];
-const TRABAJOS = ['chatbot de atención', 'web con buscador', 'app de reservas', 'resumen de contratos', 'traductor interno', 'clasificador de correos'];
+export const CLIENTES = ['Panadería Paco', 'Ayuntamiento', 'Startup cripto', 'Clínica dental', 'Club de fútbol', 'Tienda de cómics', 'Banco Pixel', 'Academia de idiomas'];
+export const TRABAJOS = ['chatbot de atención', 'web con buscador', 'app de reservas', 'resumen de contratos', 'traductor interno', 'clasificador de correos'];
 
-const EVENTOS = [
+export const EVENTOS = [
   { id: 'viral', p: 0.02, texto: '🚀 ¡Un tuit sobre PixelSoft se hace viral! +reputación y clientes.', aplicar: (m) => { m.empresa.reputacion = Math.min(100, m.empresa.reputacion + 8); m.empresa.clientes += 6; } },
   { id: 'hacker', p: 0.012, texto: '🕵️ Ataque hacker: os roban datos y dinero.', aplicar: (m) => { const r = m.empresa.tieneAntivirus || m.progreso.investigado.includes('finetune') ? 0.3 : 1; m.empresa.dinero -= Math.round(400 * r); m.empresa.reputacion = Math.max(0, m.empresa.reputacion - 4 * r); } },
   { id: 'gpu', p: 0.015, texto: '📉 Bajan las GPUs: el mantenimiento de hoy sale gratis.', aplicar: (m) => { m.empresa.dinero += 150; } },
@@ -58,7 +58,7 @@ export function crearProgreso() {
     contratosFallidos: 0,
     investigado: [],
     logros: [],
-    rival: { nombre: 'MegaByte S.A.', reputacion: 35, clientes: 20 },
+    rival: { nombre: 'MegaByte S.A.', reputacion: 66, clientes: 20 },
     tutorial: 0,
     ultimoEvento: null
   };

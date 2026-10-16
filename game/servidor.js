@@ -31,6 +31,7 @@ import { spawn } from 'node:child_process';
 
 import { CerebroReal } from './cerebro-real.js';
 import { Mundo } from '../public/js/motor/mundo.js';
+import { aplicarMods, validarMod } from '../public/js/motor/mods.js';
 import { systemPrompt } from '../public/js/motor/reglas.js';
 
 const MIME = {
@@ -163,6 +164,43 @@ async function elegirPuerto(preferido, host) {
  * @param {string[]} opciones.args           Argumentos de linea de comandos
  * @param {boolean}  opciones.simulado       true = cerebro simulado (sin modelos)
  */
+/**
+ * Actualizador del .exe: baja el nuevo al lado, y un .cmd espera a que este
+ * proceso se cierre, cambia el fichero y vuelve a abrir el juego. La partida
+ * vive en ~/.pixelsoft, asi que no se toca.
+ */
+async function actualizarExe(url) {
+  if (process.platform !== 'win32' || !/\.exe$/i.test(process.execPath) || /node\.exe$/i.test(process.execPath)) {
+    return { ok: false, mensaje: 'La actualización automática solo funciona en PixelSoft.exe. Descárgalo desde GitHub.' };
+  }
+  if (!/^https:\/\/github\.com\/pilahito\/pixelsoft\/releases\/download\/[^\s"]+\.exe$/i.test(url)) {
+    return { ok: false, mensaje: 'Enlace de actualización no válido.' };
+  }
+  const destino = process.execPath + '.nuevo';
+  try {
+    const r = await fetch(url, { redirect: 'follow' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    fs.writeFileSync(destino, Buffer.from(await r.arrayBuffer()));
+    if (fs.statSync(destino).size < 5 * 1024 * 1024) throw new Error('descarga incompleta');
+  } catch (e) {
+    try { fs.unlinkSync(destino); } catch (_) {}
+    return { ok: false, mensaje: 'No pude descargar la actualización: ' + e.message };
+  }
+  const script = path.join(os.tmpdir(), 'pixelsoft-actualizar.cmd');
+  const exe = process.execPath;
+  fs.writeFileSync(script, [
+    '@echo off',
+    ':espera',
+    `tasklist /FI "PID eq ${process.pid}" | find "${process.pid}" >nul && (timeout /t 1 >nul & goto espera)`,
+    `move /y "${exe}" "${exe}.viejo" >nul`,
+    `move /y "${destino}" "${exe}" >nul || move /y "${exe}.viejo" "${exe}" >nul`,
+    `start "" "${exe}" --abrir`,
+    `del "${exe}.viejo" >nul 2>&1`
+  ].join('\r\n'));
+  spawn('cmd.exe', ['/c', script], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  return { ok: true, mensaje: 'Actualización descargada. PixelSoft se reinicia solo.' };
+}
+
 export function iniciarServidor({ config, leerEstatico, args = [], simulado = false }) {
   const A_LA_RED = args.includes('--red');
   const ABRIR = args.includes('--abrir');
@@ -289,6 +327,22 @@ export function iniciarServidor({ config, leerEstatico, args = [], simulado = fa
           clearInterval(latido);
           suscriptores.delete(res);
         });
+        return;
+      }
+
+      if (ruta === '/api/mods' && req.method === 'POST') {
+        const cuerpo = await leerCuerpo(req);
+        try {
+          const mods = (Array.isArray(cuerpo.mods) ? cuerpo.mods : []).slice(0, 50).map((x) => ({ ...validarMod(x), activo: !!x.activo }));
+          return responderJson(res, 200, { ok: true, avisos: aplicarMods(mods) });
+        } catch (e) { return responderJson(res, 400, { ok: false, mensaje: e.message }); }
+      }
+
+      if (ruta === '/api/actualizar' && req.method === 'POST') {
+        const cuerpo = await leerCuerpo(req);
+        const r = await actualizarExe(String(cuerpo.url || ''));
+        responderJson(res, r.ok ? 200 : 400, r);
+        if (r.ok) setTimeout(() => { guardarPartida(); process.exit(0); }, 800);
         return;
       }
 
