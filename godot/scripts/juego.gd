@@ -310,8 +310,15 @@ func cerrar_dia_pueblo() -> void:
 	for obra in p.propuestas:
 		if obra.estado != "aprobada": continue
 		for a in agentes:
-			var pone = floorf(maxf(0, a.dinero - 30) * 0.1)
+			# Impuesto municipal (6 EUR) + un 10% de lo que ahorran.
+			var pone = 6.0 + floorf(maxf(0, a.dinero - 30) * 0.1)
+			pone = minf(pone, maxf(0, a.dinero))
 			a.dinero -= pone; obra.fondos += pone
+		# La empresa, si va bien, aporta un 4% de la caja.
+		if empresa.dinero > 800:
+			var e_pone = floorf(empresa.dinero * 0.04)
+			empresa.dinero -= e_pone; obra.fondos += e_pone
+		obra.fondos = minf(obra.fondos, obra.coste)
 		if obra.fondos >= obra.coste:
 			var t = tipo_edificio(obra.tipo)
 			var h = _hueco(t)
@@ -329,7 +336,8 @@ func _que_proponer(a: Dictionary) -> Array:
 			return [t, MOTIVOS[t.necesidad]]
 	var peor = "hambre"
 	for k in NECESIDADES: if a.necesidades[k] < a.necesidades[peor]: peor = k
-	var ops = TIPOS_EDIFICIO.filter(func(t): return t.get("necesidad", "") == peor and not t.get("unico", false))
+	# No repetir: si ya hay 2 del mismo tipo, mejor otra cosa.
+	var ops = TIPOS_EDIFICIO.filter(func(t): return t.get("necesidad", "") == peor and not t.get("unico", false) and pueblo.edificios.filter(func(e): return e.tipo == t.id).size() < 2)
 	if ops.is_empty() or a.necesidades[peor] > 70:
 		var d = TIPOS_EDIFICIO.filter(func(t): return t.get("decoracion", false))
 		return [d[randi() % d.size()], MOTIVOS.decor]

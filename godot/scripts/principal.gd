@@ -25,6 +25,13 @@ func _ready() -> void:
 	Juego.cambiado.connect(_sincronizar)
 	_sincronizar()
 	if OS.get_cmdline_user_args().has("--captura"): _captura_y_salir()
+	if OS.get_cmdline_user_args().has("--prueba"):
+		Juego.pueblo.modo = "libre"
+		for i in 24 * 20: Juego.tick_hora()
+		print("PRUEBA dia=%d dinero=%d edificios=%d propuestas=%s" % [Juego.dia, Juego.empresa.dinero, Juego.pueblo.edificios.size(), Juego.pueblo.propuestas.map(func(x): return x.nombre + "/" + x.estado)])
+		for a in Juego.agentes: print("  ", a.nombre, " ", a.necesidades, " moral=", int(a.moral), " dinero=", int(a.dinero), " puntos=", a.puntos)
+		var g = JSON.stringify(Juego.exportar()); print("  guardado bytes=", g.length(), " recarga=", Juego.importar(JSON.parse_string(g)))
+		get_tree().quit()
 
 func _leer_ajuste(k: String, def):
 	var c = ConfigFile.new(); c.load("user://ajustes.cfg")
