@@ -5,6 +5,9 @@
 - **SmolLM2-360M-Instruct** (Hugging Face), Apache-2.0: https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct
 - **Transformers.js** (Hugging Face), Apache-2.0: https://github.com/huggingface/transformers.js
 - **ONNX Runtime Web** (Microsoft), MIT: https://github.com/microsoft/onnxruntime
+- **Godot Engine 4.3**, MIT: https://godotengine.org (motor de PixelSoft 2)
+- **Blender 4.2**, GPL (solo la herramienta; los modelos generados son nuestros): https://www.blender.org
+- **Kenney.nl**, CC0 (versión web 1.x): Tiny Town, Tiny Dungeon e Interface Sounds. https://kenney.nl/assets/tiny-town · https://kenney.nl/assets/tiny-dungeon · https://kenney.nl/assets/interface-sounds
 - **LM Studio**: servidor externo, no se redistribuye. https://lmstudio.ai
 - Idea de "utility AI" para las necesidades: patrón clásico de Los Sims (Will Wright / Maxis), reimplementado desde cero. No se copia código.
 - Iconos: emoji del sistema del dispositivo.

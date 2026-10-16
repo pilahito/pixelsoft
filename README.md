@@ -56,6 +56,28 @@ Verás algo así al arrancar:
 
 ---
 
+## PixelSoft 2.0 · 3D nativo (Godot 4)
+
+PixelSoft 2 es un juego nativo hecho con **Godot 4** (sin navegador) para **Windows (.exe)** y **Android (.apk)**. El código está en [`godot/`](godot/).
+
+- **Pueblo en 3D** con modelos low-poly que genera Blender desde [`tools/arte/modelos.py`](tools/arte/modelos.py) (`blender -b -P tools/arte/modelos.py -- godot/assets/modelos`).
+- **Sims**: hambre, sueño, diversión, higiene y social. Ellos solos deciden qué hacer, caminan por la calle hasta casa, oficina, súper, cafetería, parque o gimnasio y se animan (andar, quieto, sentado, dormir). Llevan encima la **gema de ánimo**.
+- **Techos ocultables** (botón *Techos*) para ver el interior, igual que en Los Sims.
+- **Cámara tipo Sims**: arrastrar para mover, clic derecho para girar, rueda para zoom. En el móvil: un dedo, dos dedos y pellizco. Doble clic o doble toque para elegir un Sim.
+- **El pueblo lo construyen las IAs**: cada noche uno propone un edificio según lo que le falta y sus rasgos. Votan, pagan impuestos y lo construyen; se ve la obra crecer. Tú apruebas o vetas, o les dejas decidir solos. Ellos eligen nombre y bandera del pueblo.
+- **Modo comprar** con categorías. **Rasgos** y **puntos de habilidad** para gastar. **Amistades**, que también suben con charlas escritas por la IA.
+- **LM Studio** en el PC o por la wifi (Ajustes → IA). Sin conexión, modo demo.
+- **Mods** de datos (`.zip` con `mod.json`), que sobreviven a las actualizaciones. Guía en [MODS.md](MODS.md).
+- **Actualizador** integrado y **autoguardado** en `user://partida.json`.
+- Calidad **Bajo/Medio/Alto** (en el móvil empieza en Bajo), 30 fps como máximo y casi parado en segundo plano. Los árboles se dibujan con MultiMesh.
+
+![Pueblo](capturas/v2-pueblo.png)
+![Interior](capturas/v2-interior.png)
+![Comprar](capturas/v2-comprar.png)
+![Noche](capturas/v2-noche.png)
+
+La versión web (`public/`, 1.x) sigue en el repositorio como referencia.
+
 ## Novedades 1.1
 
 - **Vida tipo Sims**: cada empleado tiene hambre, sueño, diversión, higiene y social. Decide solo (utility AI) si come, duerme, se ducha, va al súper, a la cafetería, al parque o al gimnasio. Tiene rasgos de personalidad, habilidades que suben con el uso, inventario, muebles, casa (alquilar o comprar) y amistades.

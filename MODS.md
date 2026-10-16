@@ -3,7 +3,10 @@
 Un mod es un `.zip` con un `mod.json` dentro (y, si quieres, imágenes `.png`/`.webp` y sonidos `.ogg`/`.wav`/`.mp3`).
 **Los mods son solo datos:** el juego nunca ejecuta código de un mod. Todo se valida y se recorta al cargar.
 
-## Instalar
+## PixelSoft 2 (Godot)
+Ajustes → Mods → **Instalar .zip** (en PC también puedes arrastrar el .zip a la ventana). Los mods se copian en `user://mods/<id>/`. Además de `objetos`, se admiten `edificios`: `{ "id", "nombre", "ancho", "fondo", "coste", "lugar": casa|super|cafeteria|parque|gimnasio, "necesidad", "modelo": casa|super|cafeteria|gimnasio|biblioteca|arcade }`. Las IAs los propondrán en el pueblo.
+
+## Instalar (versión web 1.x)
 Ajustes → Mods → **📦 Instalar .zip** (en PC y en Android abre el selector de archivos).
 Desde ahí puedes activar, desactivar, quitar y cambiar el **orden de carga** (▲▼). Si dos mods tocan el mismo `id`, gana el que va más abajo y el juego te avisa.
 Los mods se guardan aparte de la partida y **sobreviven a las actualizaciones**.
