@@ -236,7 +236,8 @@ export function iniciarServidor({ config, leerEstatico, args = [], simulado = fa
     } catch (_) { /* disco lleno o sin permisos: seguimos jugando */ }
   };
   setInterval(guardarPartida, 30000).unref();
-  process.once('SIGINT', () => { guardarPartida(); process.exit(0); });
+  process.on('exit', guardarPartida);
+  process.once('SIGTERM', () => process.exit(0));
 
   // ------------------------------------------------------------- SSE (vivo)
   const suscriptores = new Set();
