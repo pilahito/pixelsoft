@@ -34,6 +34,8 @@ public class MainActivity extends Activity {
         ajustes.setDomStorageEnabled(true);
         ajustes.setAllowFileAccess(false);
         ajustes.setAllowContentAccess(false);
+        // LM Studio del PC va por http:// en la red de casa.
+        ajustes.setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         ajustes.setSupportZoom(false);
         ajustes.setBuiltInZoomControls(false);
         ajustes.setTextZoom(100);

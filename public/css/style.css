@@ -879,3 +879,16 @@ pre.prompt-crudo .clave { color: #ffd98a; }
   .registro-caja { height: 96px; }
   .lienzo-caja { padding: 3px; }
 }
+
+/* ---- Panel Empresa (contratos, investigacion, plantas, logros) ---- */
+.pr-lista { display: flex; flex-direction: column; gap: 8px; }
+.pr-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px;
+  border: 2px solid rgba(255,255,255,.08); border-radius: 6px; background: rgba(0,0,0,.18); transition: transform .12s, border-color .12s; }
+.pr-item:hover { transform: translateY(-1px); border-color: var(--acento, #6cf); }
+.pr-item.hecho { opacity: .75; }
+.pr-item .barra-pista { height: 10px; margin: 6px 0 4px; }
+.pr-item .btn { flex-shrink: 0; min-height: 40px; }
+.pr-logros { display: flex; flex-wrap: wrap; gap: 6px; }
+.pr-logros .chip { opacity: .5; }
+.pr-logros .chip.hecho { opacity: 1; }
+@media (max-width: 760px) { .pr-item { flex-direction: column; align-items: stretch; } .pr-item .btn { width: 100%; } }

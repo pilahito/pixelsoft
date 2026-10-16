@@ -82,6 +82,7 @@
   <aside class="lateral">
     <nav class="pestanas">
       <button class="pestana activa" data-panel="poderes">⚡ Poderes</button>
+      <button class="pestana" data-panel="empresa">🏢 Empresa</button>
       <button class="pestana" data-panel="empleados">👤 Empleados</button>
       <button class="pestana" data-panel="laboratorio">🧠 Laboratorio IA</button>
       <button class="pestana" data-panel="cerebro">✏️ Cerebro</button>
@@ -209,6 +210,17 @@
       </p>
     </div>
 
+    <!-- ------------------------------------------------------ EMPRESA -->
+    <div class="panel" id="panel-empresa">
+      <div class="bloque"><h3>📋 Contrato en marcha</h3><div id="pr-activo"></div></div>
+      <div class="bloque"><h3>📨 Ofertas de clientes</h3><div id="pr-ofertas" class="pr-lista"></div></div>
+      <div class="bloque"><h3>🔬 Investigación de IA</h3><p class="nota">Cada avance enseña cómo funcionan los modelos de verdad.</p><div id="pr-investigacion" class="pr-lista"></div></div>
+      <div class="bloque"><h3>🏢 Plantas de la oficina</h3><div id="pr-plantas" class="pr-lista"></div></div>
+      <div class="bloque"><h3>🥊 Rival</h3><div id="pr-rival"></div></div>
+      <div class="bloque"><h3>🏆 Logros</h3><div id="pr-logros" class="pr-logros"></div></div>
+      <div class="bloque"><h3>📜 Créditos</h3><p class="nota">PixelSoft por pilahito. Modelos en el móvil: Qwen2.5 (Apache-2.0, Alibaba) y SmolLM2 (Apache-2.0, Hugging Face) vía Transformers.js (Apache-2.0) y ONNX Runtime Web (MIT). Lista completa en CREDITS.md.</p></div>
+    </div>
+
     <!-- ------------------------------------------------------ CEREBRO -->
     <div class="panel" id="panel-cerebro">
       <p class="intro" id="intro-cerebro">
@@ -221,9 +233,23 @@
         <div class="rejilla-acciones">
           <button class="btn" data-cerebro="simulado">⚡ Simulado · instantáneo</button>
           <button class="btn" data-cerebro="onnx">🧠 IA real en el móvil</button>
+          <button class="btn" data-cerebro="lan">🖥️ LM Studio del PC (wifi)</button>
         </div>
         <p class="nota" id="cerebro-actual">Ahora mismo: cerebro simulado.</p>
 
+        <div id="ia-lan" hidden>
+          <label class="campo" style="margin-top:10px">
+            <span>Dirección de LM Studio en tu PC</span>
+            <input id="lan-url" type="url" inputmode="url" placeholder="http://192.168.1.50:1234" autocomplete="off">
+          </label>
+          <label class="campo"><span>Modelo</span><select id="lan-modelo"></select></label>
+          <div class="rejilla-acciones" style="margin-top:9px">
+            <button class="btn" id="lan-probar">🔌 Probar conexión</button>
+            <button class="btn bonito" id="lan-activar">✅ Usar este PC</button>
+          </div>
+          <p class="nota">En LM Studio: Developer → Server → activa «Serve on Local Network» y «Enable CORS». Si el PC no responde, el juego sigue en modo demo (simulado).</p>
+          <p class="nota" id="lan-estado"></p>
+        </div>
         <div id="ia-movil" hidden>
           <label class="campo" style="margin-top:10px">
             <span>Modelo</span>

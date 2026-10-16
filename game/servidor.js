@@ -26,6 +26,7 @@ import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
+import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 
 import { CerebroReal } from './cerebro-real.js';
@@ -181,6 +182,23 @@ export function iniciarServidor({ config, leerEstatico, args = [], simulado = fa
   });
 
   const mundo = new Mundo(config, cerebro);
+
+  // Autoguardado: la partida sobrevive a cerrar el juego.
+  const RUTA_PARTIDA = path.join(os.homedir(), '.pixelsoft', 'partida.json');
+  try {
+    if (!args.includes('--nueva') && fs.existsSync(RUTA_PARTIDA)) {
+      mundo.importarPartida(JSON.parse(fs.readFileSync(RUTA_PARTIDA, 'utf8')));
+    }
+  } catch (e) { console.log('  No pude cargar la partida guardada: ' + e.message); }
+  const guardarPartida = () => {
+    try {
+      fs.mkdirSync(path.dirname(RUTA_PARTIDA), { recursive: true });
+      fs.writeFileSync(RUTA_PARTIDA + '.tmp', JSON.stringify(mundo.exportarPartida()));
+      fs.renameSync(RUTA_PARTIDA + '.tmp', RUTA_PARTIDA);
+    } catch (_) { /* disco lleno o sin permisos: seguimos jugando */ }
+  };
+  setInterval(guardarPartida, 30000).unref();
+  process.once('SIGINT', () => { guardarPartida(); process.exit(0); });
 
   // ------------------------------------------------------------- SSE (vivo)
   const suscriptores = new Set();
@@ -421,11 +439,11 @@ export function iniciarServidor({ config, leerEstatico, args = [], simulado = fa
       const ping = await cerebro.conectar();
       if (ping.ok) {
         console.log(`  Conexion con la IA  : OK (${ping.modelos} modelos disponibles)`);
-        if (ping.claveDescubierta) console.log(`  Clave API           : descubierta automaticamente (${ping.claveDescubierta})`);
+        if (ping.claveDescubierta) console.log(`  Clave API           : descubierta automaticamente (****${String(ping.claveDescubierta).slice(-4)})`);
       } else {
         console.log(`  Conexion con la IA  : FALLO -> ${ping.error}`);
         console.log('  El juego arrancara igual, pero los empleados no podran pensar.');
-        console.log('  Arranca LM Studio con el servidor local activado en el puerto 8080.');
+        console.log('  Arranca LM Studio con el servidor local activado (puerto 8080 o 1234, el de LM Studio por defecto).');
       }
     }
 

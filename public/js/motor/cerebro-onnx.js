@@ -55,6 +55,32 @@ export const MODELOS = [
   }
 ];
 
+/**
+ * Mira el hardware del movil y elige el modelo que puede mover sin
+ * calentarse. Todos los modelos son Apache-2.0.
+ *   < 4 GB de RAM -> SmolLM2 360M · 4-8 GB -> Qwen 0,5B · >= 8 GB -> Qwen 1,5B
+ */
+export function perfilHardware() {
+  const ram = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 4; // Chrome lo redondea (max 8)
+  const nucleos = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
+  let id = MODELOS[0].id;
+  if (ram < 4 || nucleos <= 4) id = 'HuggingFaceTB/SmolLM2-360M-Instruct';
+  else if (ram >= 8 && nucleos >= 8) id = 'onnx-community/Qwen2.5-1.5B-Instruct';
+  // Como mucho la mitad de los nucleos (y 4): menos calor y bateria.
+  const hilos = Math.max(1, Math.min(4, Math.floor(nucleos / 2)));
+  return { ram, nucleos, hilos, recomendado: id };
+}
+
+/** Borra los ficheros de modelos descargados (cache del navegador/WebView). */
+export async function borrarModelosDescargados() {
+  if (typeof caches === 'undefined') return 0;
+  let n = 0;
+  for (const k of await caches.keys()) {
+    if (/transformers|onnx|model/i.test(k)) { await caches.delete(k); n++; }
+  }
+  return n;
+}
+
 const estimarTokens = (texto) => Math.ceil(String(texto || '').length / 4);
 
 /**
@@ -86,7 +112,7 @@ export class CerebroONNX {
     this.simulado = false;
     this.enElMovil = true;
 
-    this.modeloElegido = MODELOS[0].id;
+    this.modeloElegido = perfilHardware().recomendado;
     this.tuberia = null;
     this.estado = 'sin-preparar';       // sin-preparar | descargando | cargando | listo | error
     this.mensajeEstado = 'La IA todavia no esta preparada.';
@@ -215,7 +241,7 @@ export class CerebroONNX {
       const tieneHilos = typeof SharedArrayBuffer !== 'undefined';
       env.backends.onnx.wasm.wasmPaths = RUTA_IA;
       if (tieneHilos && navigator.hardwareConcurrency) {
-        env.backends.onnx.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency);
+        env.backends.onnx.wasm.numThreads = perfilHardware().hilos;
       } else {
         env.backends.onnx.wasm.numThreads = 1;
       }

@@ -436,7 +436,29 @@ document.addEventListener('click', (ev) => {
 
 let panelActivo = 'poderes';
 
+function actualizarEmpresa() {
+  const p = estado && estado.progreso;
+  if (!p) return;
+  const dinero = estado.empresa.dinero;
+  const c = p.contratoActivo;
+  $('pr-activo').innerHTML = c
+    ? `<div class="pr-item"><strong>${escapar(c.trabajo)}</strong> para ${escapar(c.cliente)} · ${c.pago} EUR<div class="barra-pista"><div class="barra-relleno" style="width:${Math.round(c.progreso / c.trabajoTotal * 100)}%"></div></div><span class="nota">Quedan ${Math.max(0, c.plazo)} días · calidad mínima ${c.calidadMin} (tenéis ${Math.round(estado.empresa.calidad)})</span></div>`
+    : '<p class="nota">Ninguno. Acepta una oferta para ganar dinero extra.</p>';
+  $('pr-ofertas').innerHTML = p.contratos.map((o) => `<div class="pr-item"><div><strong>${escapar(o.cliente)}</strong>: ${escapar(o.trabajo)}<br><span class="nota">${o.pago} EUR · ${o.dias} días · calidad ≥ ${o.calidadMin}</span></div><button class="btn" data-pr="aceptar_contrato" data-id="${o.id}" ${c ? 'disabled' : ''}>Aceptar</button></div>`).join('');
+  $('pr-investigacion').innerHTML = p.investigacion.map((n) => `<div class="pr-item ${n.hecho ? 'hecho' : ''}" title="${escapar(n.leccion)}"><div><strong>${n.hecho ? '✅' : n.disponible ? '🔓' : '🔒'} ${escapar(n.nombre)}</strong><br><span class="nota">${escapar(n.hecho ? n.leccion : n.efecto)}</span></div>${n.hecho ? '' : `<button class="btn" data-pr="investigar" data-id="${n.id}" ${!n.disponible || dinero < n.coste ? 'disabled' : ''}>${n.coste} EUR</button>`}</div>`).join('');
+  $('pr-plantas').innerHTML = p.plantas.map((pl) => `<div class="pr-item ${pl.id <= p.planta ? 'hecho' : ''}"><div><strong>${pl.id <= p.planta ? '✅' : '🏗️'} ${escapar(pl.nombre)}</strong>${pl.requiere && pl.id > p.planta ? `<br><span class="nota">${escapar(pl.requiere)} (${p.contratosHechos}/${pl.contratos}) · ${pl.coste} EUR</span>` : ''}</div>${pl.id === p.planta + 1 ? `<button class="btn" data-pr="subir_planta" ${p.contratosHechos < pl.contratos || dinero < pl.coste ? 'disabled' : ''}>Mudarse</button>` : ''}</div>`).join('');
+  $('pr-rival').innerHTML = `<p class="nota">${escapar(p.rival.nombre)} · reputación ${Math.round(p.rival.reputacion)} vs vuestra ${Math.round(estado.empresa.reputacion)}. Si os supera, os roba clientes cada noche.</p>`;
+  $('pr-logros').innerHTML = p.logrosTodos.map((l) => `<span class="chip ${l.hecho ? 'hecho' : ''}">${l.hecho ? '🏆' : '🔒'} ${escapar(l.nombre)}</span>`).join(' ');
+}
+
+document.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('[data-pr]');
+  if (!b || b.disabled) return;
+  await enviarDios(b.dataset.pr, { id: b.dataset.id });
+});
+
 function actualizarPanelActivo() {
+  if (panelActivo === 'empresa') actualizarEmpresa();
   if (panelActivo === 'empleados') actualizarEmpleados();
   if (panelActivo === 'laboratorio') actualizarLaboratorio();
   if (panelActivo === 'cerebro') actualizarCerebroVista();
@@ -748,7 +770,9 @@ function guardarEleccionCerebro(tipo) {
 function pintarCerebroActual() {
   const texto = $('cerebro-actual');
   if (!texto) return;
-  if (cerebroElegido === 'onnx') {
+  if (cerebroElegido === 'lan' && cerebroLAN) {
+    texto.innerHTML = `Ahora mismo: <strong>LM Studio del PC</strong> (${escapar(cerebroLAN.modelo)} en ${escapar(cerebroLAN.base)}).`;
+  } else if (cerebroElegido === 'onnx') {
     const m = catalogoIA.find((x) => x.id === (cerebroONNX && cerebroONNX.modeloElegido));
     texto.innerHTML = `Ahora mismo: <strong>IA real en el móvil</strong>` +
       (m ? ` (${escapar(m.nombre)})` : '') + '. Tarda unos segundos por decisión.';
@@ -899,6 +923,8 @@ document.querySelectorAll('[data-cerebro]').forEach((boton) => {
   boton.addEventListener('click', async () => {
     const tipo = boton.dataset.cerebro;
     $('ia-movil').hidden = tipo !== 'onnx';
+    if ($('ia-lan')) $('ia-lan').hidden = tipo !== 'lan';
+    if (tipo === 'lan') { prepararPanelLAN(); return; }
     if (tipo === 'onnx') {
       await cargarCatalogoIA();
       if (cerebroONNX && cerebroONNX.listo) {
@@ -917,6 +943,52 @@ document.querySelectorAll('[data-cerebro]').forEach((boton) => {
 });
 
 $('ia-preparar') && $('ia-preparar').addEventListener('click', prepararIA);
+
+/* ------------------------------------------------- LM Studio por la wifi */
+let cerebroLAN = null;
+function prepararPanelLAN() {
+  try { $('lan-url').value = $('lan-url').value || localStorage.getItem('pixelsoft.lan.url') || ''; } catch (_) {}
+}
+async function probarLAN() {
+  const { probarServidor } = await import('./motor/cerebro-lan.js');
+  const estadoLan = $('lan-estado');
+  estadoLan.textContent = '⏳ Probando…';
+  try {
+    const modelos = await probarServidor($('lan-url').value);
+    if (!modelos.length) throw new Error('Conecta, pero LM Studio no tiene ningún modelo de chat cargado.');
+    const guardado = localStorage.getItem('pixelsoft.lan.modelo');
+    $('lan-modelo').innerHTML = modelos.map((m) => `<option ${m === guardado ? 'selected' : ''}>${escapar(m)}</option>`).join('');
+    estadoLan.textContent = `✅ Conectado: ${modelos.length} modelo(s).`;
+    return true;
+  } catch (e) {
+    estadoLan.textContent = '❌ ' + e.message;
+    return false;
+  }
+}
+async function activarLAN(silencioso = false) {
+  if (!$('lan-modelo').value && !(await probarLAN())) {
+    if (!silencioso) brindis('El PC no responde: sigo en modo demo.', true);
+    return;
+  }
+  const { CerebroLAN, normalizarUrl } = await import('./motor/cerebro-lan.js');
+  const url = normalizarUrl($('lan-url').value);
+  cerebroLAN = new CerebroLAN(url, $('lan-modelo').value);
+  try {
+    localStorage.setItem('pixelsoft.lan.url', url);
+    localStorage.setItem('pixelsoft.lan.modelo', cerebroLAN.modelo);
+  } catch (_) {}
+  if (mundoLocal) {
+    mundoLocal.cerebro = cerebroLAN;
+    mundoLocal.registrar('sistema', `Los empleados piensan ahora con LM Studio del PC (${cerebroLAN.modelo}).`);
+    mundoLocal._emitir();
+  }
+  guardarEleccionCerebro('lan');
+  pintarCerebroActual();
+  ajustarCintaLocal();
+  if (!silencioso) brindis('Conectado al PC.');
+}
+$('lan-probar') && $('lan-probar').addEventListener('click', probarLAN);
+$('lan-activar') && $('lan-activar').addEventListener('click', () => activarLAN());
 $('ia-liberar') && $('ia-liberar').addEventListener('click', liberarIA);
 
 /* -------------------------------------------------------- poderes de dios */
@@ -1303,6 +1375,15 @@ async function iniciarLocal() {
     cerebroLocal = new CerebroSimulado();
     cerebroSimuladoLocal = cerebroLocal;
     mundoLocal = new Mundo(configLocal, cerebroLocal);
+    try {
+      const guardada = localStorage.getItem('pixelsoft.partida');
+      if (guardada) mundoLocal.importarPartida(JSON.parse(guardada));
+    } catch (_) { /* partida corrupta: empezamos de cero */ }
+    const autoguardar = () => {
+      try { localStorage.setItem('pixelsoft.partida', JSON.stringify(mundoLocal.exportarPartida())); } catch (_) {}
+    };
+    setInterval(autoguardar, 20000);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) autoguardar(); });
     mundoLocal.iniciar();
 
     estado = mundoLocal.snapshot();
@@ -1319,6 +1400,10 @@ async function iniciarLocal() {
     // IA de verdad.
     if (cerebroElegido === 'onnx') {
       cargarIADeFondo();
+    } else if (cerebroElegido === 'lan') {
+      // Si el PC no esta encendido se queda el simulado (modo demo).
+      prepararPanelLAN();
+      activarLAN(true).catch(() => {});
     }
     pintarCerebroActual();
     ajustarCintaLocal();

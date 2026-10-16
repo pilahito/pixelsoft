@@ -19,6 +19,7 @@
  */
 
 import http from 'node:http';
+import https from 'node:https';
 import { execFileSync } from 'node:child_process';
 
 // extraerJson vive en reglas.js, para no tener dos copias de lo mismo: la usan
@@ -107,7 +108,7 @@ class ClienteLLM {
   }
 
   /** Peticion HTTP cruda con timeout propio. */
-  _peticion(metodo, ruta, cuerpo) {
+  _peticion(metodo, ruta, cuerpo, timeoutMs = this.timeoutMs) {
     return new Promise((resolve, reject) => {
       let url;
       try {
@@ -125,10 +126,11 @@ class ClienteLLM {
         cabeceras['Content-Length'] = datos.length;
       }
 
-      const req = http.request(
+      const mod = url.protocol === 'https:' ? https : http;
+      const req = mod.request(
         {
           hostname: url.hostname,
-          port: url.port,
+          port: url.port || (url.protocol === 'https:' ? 443 : 80),
           path: url.pathname + url.search,
           method: metodo,
           headers: cabeceras
@@ -153,10 +155,15 @@ class ClienteLLM {
         }
       );
 
-      req.setTimeout(this.timeoutMs, () => {
-        req.destroy(new Error(`El modelo tardo mas de ${Math.round(this.timeoutMs / 1000)}s en responder`));
+      req.setTimeout(timeoutMs, () => {
+        const err = new Error(`El modelo tardo mas de ${Math.round(timeoutMs / 1000)}s en responder`);
+        err.code = 'ETIMEDOUT';
+        req.destroy(err);
       });
-      req.on('error', reject);
+      req.on('error', (e) => {
+        if (e.code === 'ECONNREFUSED') e.message = `No hay servidor de modelos en ${this.baseUrl}. ¿Esta LM Studio abierto con el servidor local activado?`;
+        reject(e);
+      });
       if (datos) req.write(datos);
       req.end();
     });
@@ -164,13 +171,20 @@ class ClienteLLM {
 
   /** Lista los modelos que ofrece el servidor. */
   async listarModelos() {
-    const r = await this._peticion('GET', '/v1/models');
-    const lista = (r && r.data) || [];
-    return lista.map((m) => ({
-      id: m.id,
-      estado: m.status ? m.status.value : 'desconocido',
-      arquitectura: m.architecture || null
-    }));
+    // Timeout corto: listar modelos nunca deberia tardar minutos.
+    const r = await this._peticion('GET', '/v1/models', null, 8000);
+    const lista = Array.isArray(r) ? r : ((r && (r.data || r.models)) || []);
+    const vistos = new Set();
+    return lista
+      .map((m) => (typeof m === 'string' ? { id: m } : m))
+      .filter((m) => m && m.id && !vistos.has(m.id) && vistos.add(m.id))
+      // Los modelos de embeddings no saben chatear: fuera de la lista.
+      .filter((m) => m.type !== 'embeddings' && !/embed/i.test(m.id))
+      .map((m) => ({
+        id: m.id,
+        estado: m.status ? (m.status.value || m.status) : (m.state || 'desconocido'),
+        arquitectura: m.architecture || m.arch || null
+      }));
   }
 
   /** Comprueba que el servidor responde. */
@@ -207,6 +221,20 @@ class ClienteLLM {
   async conectar() {
     let ping = await this.ping();
     if (ping.ok) return ping;
+
+    // LM Studio escucha por defecto en 1234 y llama-server en 8080: si el
+    // configurado no responde, probamos el otro antes de rendirnos.
+    try {
+      const u = new URL(this.baseUrl);
+      if (['127.0.0.1', 'localhost'].includes(u.hostname) && ['8080', '1234'].includes(u.port)) {
+        const original = this.baseUrl;
+        u.port = u.port === '8080' ? '1234' : '8080';
+        this.baseUrl = u.origin;
+        const alt = await this.ping();
+        if (alt.ok) { alt.puertoAlternativo = this.baseUrl; return alt; }
+        this.baseUrl = original;
+      }
+    } catch (_) { /* URL rara: seguimos */ }
 
     if (this.autoDescubrirClave) {
       const clave = ClienteLLM.descubrirClave();
@@ -267,11 +295,7 @@ class ClienteLLM {
       this._emitir('llamadaInicio', entrada);
 
       try {
-        const bruto = await this._peticion(
-          'POST',
-          '/v1/chat/completions',
-          cuerpoPeticion({ modelo, mensajes, temperatura, maxTokens, esquema })
-        );
+        const bruto = await this._chatConReintentos({ modelo, mensajes, temperatura, maxTokens, esquema });
 
         entrada.ms = Date.now() - inicio;
         const eleccion = bruto && bruto.choices && bruto.choices[0];
@@ -334,6 +358,30 @@ class ClienteLLM {
         throw e;
       }
     });
+  }
+
+  /**
+   * Reintenta fallos pasajeros (conexion cortada, 502/503 mientras LM Studio
+   * carga el modelo) y, si el servidor no entiende response_format, repite sin el.
+   */
+  async _chatConReintentos(op) {
+    let esquema = op.esquema;
+    let ultimo;
+    for (let intento = 0; intento < 3; intento++) {
+      try {
+        return await this._peticion('POST', '/v1/chat/completions', cuerpoPeticion({ ...op, esquema }));
+      } catch (e) {
+        ultimo = e;
+        if (esquema && e.status === 400 && /response_format|json_schema|schema/i.test(e.message)) {
+          esquema = null; // el servidor no soporta esquemas: pedimos texto y extraemos el JSON
+          continue;
+        }
+        const pasajero = ['ECONNRESET', 'EPIPE', 'ECONNABORTED'].includes(e.code) || [502, 503, 504].includes(e.status);
+        if (!pasajero) throw e;
+        await new Promise((r) => setTimeout(r, 1500 * (intento + 1)));
+      }
+    }
+    throw ultimo;
   }
 
   _registrar(entrada) {

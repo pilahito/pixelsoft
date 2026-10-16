@@ -11,6 +11,7 @@
  * desde fuera: real (modelo local por HTTP) o simulado (voces escritas).
  */
 
+import { crearProgreso, tickProgreso, cerrarDiaProgreso, accionProgreso, vistaProgreso, multiplicadorPlanta, factorCoste } from './progresion.js';
 import {
   ACCIONES,
   NIVELES_HARDWARE,
@@ -89,6 +90,7 @@ class Mundo {
     const modelo = this.cfg.modeloPorDefecto;
     this.agentes = (this.cfg.empleados || []).map((d, i) => crearEmpleado(d, i, modelo));
 
+    this.progreso = crearProgreso();
     this.sucesos = [];
     this.pendientes = [];
     this.marcasLlamadas = [];
@@ -139,6 +141,7 @@ class Mundo {
     this._avanzarAgentes();
     this._propagarVirus();
     this._economia();
+    try { tickProgreso(this); } catch (_) { /* la progresion nunca tumba el juego */ }
     this._bombear();
     this._emitir();
   }
@@ -370,7 +373,7 @@ class Mundo {
     const factorPrecio = limitar(1 - (ratio - 1) * 0.6, 0.15, 1.35);
 
     const nivel = { multiplicadorClientes: this.multiplicadorClientes };
-    const objetivo = (6 + e.reputacion * 0.25) * factorPrecio * (0.5 + e.calidad / 100) * nivel.multiplicadorClientes;
+    const objetivo = (6 + e.reputacion * 0.25) * factorPrecio * (0.5 + e.calidad / 100) * nivel.multiplicadorClientes * multiplicadorPlanta(this);
     e.clientes += (objetivo - e.clientes) * 0.05;
     e.clientes = Math.max(0, e.clientes);
 
@@ -408,7 +411,7 @@ class Mundo {
   _cerrarDia() {
     const e = this.empresa;
     const vivos = this.agentes.filter((a) => !a.dimitido).length;
-    const coste = vivos * e.salarioPorDia + e.alquilerPorDia;
+    const coste = Math.round((vivos * e.salarioPorDia + e.alquilerPorDia) * factorCoste(this));
     e.dinero -= coste;
     e.costeUltimoDia = coste;
 
@@ -425,6 +428,8 @@ class Mundo {
       reputacion: Math.round(e.reputacion)
     });
     if (e.historial.length > 60) e.historial.shift();
+
+    try { cerrarDiaProgreso(this); } catch (_) { /* idem */ }
 
     if (e.dinero < 0) {
       this.registrar('alerta', 'La caja esta en numeros rojos. Si sigue asi, tendras que despedir a alguien.');
@@ -978,14 +983,33 @@ class Mundo {
       case 'mejorar_oficina':
         return this.dios('comprar_habitacion', {});
 
-      default:
-        return { ok: false, mensaje: `Poder desconocido: ${accion}` };
+      default: {
+        const r = accionProgreso(this, accion, carga);
+        return r || { ok: false, mensaje: `Poder desconocido: ${accion}` };
+      }
     }
   }
 
   // ------------------------------------------------------------- snapshot
 
   /** Version del estado que viaja al navegador. */
+  /** Partida guardable (autosave). */
+  exportarPartida() {
+    return { v: 1, dia: this.dia, hora: this.hora, tick: this.tick, empresa: this.empresa, agentes: this.agentes, progreso: this.progreso };
+  }
+
+  importarPartida(d) {
+    if (!d || d.v !== 1 || !d.empresa || !Array.isArray(d.agentes)) return false;
+    Object.assign(this, { dia: d.dia, hora: d.hora, tick: d.tick || 0 });
+    this.empresa = { ...this.empresa, ...d.empresa };
+    this.agentes = d.agentes.map((a) => ({ ...a, pensando: false }));
+    this.progreso = { ...crearProgreso(), ...(d.progreso || {}) };
+    this.pendientes = [];
+    this.registrar('sistema', `Partida cargada: día ${this.dia}.`);
+    this._emitir();
+    return true;
+  }
+
   snapshot() {
     const e = this.empresa;
     const precioBase = 18 + e.calidad * 0.35;
@@ -1039,6 +1063,7 @@ class Mundo {
         ultimaDecision: a.ultimaDecision,
         indiceEscritorio: a.indiceEscritorio
       })),
+      progreso: vistaProgreso(this),
       sucesos: this.sucesos.slice(-60),
       ia: this.cerebro.resumenEstadisticas()
     };
