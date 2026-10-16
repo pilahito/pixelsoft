@@ -51,6 +51,14 @@ func probar(nueva_url := "") -> void:
 
 ## Pide una frase corta; si falla, llama a con_respuesta con el texto de reserva.
 func frase(sistema: String, pregunta: String, reserva: String, con_respuesta: Callable) -> void:
+	# 1) IA en el dispositivo (por defecto en movil, sin servidores).
+	if MotorIA.backend == "local" and MotorIA.descargado(MotorIA.modelo) and MotorIA.hay_llama():
+		if _ocupado: con_respuesta.call(reserva); return
+		_ocupado = true
+		MotorIA.generar_async(sistema, pregunta, func(t):
+			_ocupado = false
+			con_respuesta.call(t if t != "" else reserva))
+		return
 	if not conectado or _ocupado:
 		con_respuesta.call(reserva); return
 	_ocupado = true

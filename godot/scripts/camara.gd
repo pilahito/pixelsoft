@@ -5,19 +5,37 @@ extends Node3D
 var distancia = 30.0
 var yaw = -0.6
 var pitch = -0.85
+var inclinacion_fija = -1.0  # grados; >0 bloquea el angulo (estilo movil)
 var objetivo = Vector3(20, 0, 12)
 var _toques = {}
 var _dist_pellizco = 0.0
 var _ang_toque = 0.0
 @onready var cam: Camera3D = $Camera3D
+## Modos: "libre" (Sims), "seguir" (sigue al Sim elegido), "primera" (ojos del Sim), "foto" (sin interfaz, FOV y giro libre)
+var modo = "libre"
+var seguir_a: Node3D = null
+
+func _process(_d: float) -> void:
+	if modo in ["seguir", "primera"] and is_instance_valid(seguir_a):
+		objetivo = objetivo.lerp(seguir_a.global_position, 0.15)
+		if modo == "primera":
+			position = seguir_a.global_position + Vector3(0, 1.55, 0)
+			rotation = Vector3(-0.1, seguir_a.rotation.y + PI, 0); cam.position = Vector3.ZERO
+			return
+		_aplicar()
+
+func poner_modo(m: String) -> void:
+	modo = m
+	cam.fov = 45 if m != "foto" else 35
+	_aplicar()
 
 func _ready() -> void:
 	_aplicar()
 
 func _aplicar() -> void:
-	distancia = clampf(distancia, 6, 60)
-	pitch = clampf(pitch, -1.45, -0.3)
-	objetivo.x = clampf(objetivo.x, 0, 40); objetivo.z = clampf(objetivo.z, 0, 24)
+	distancia = clampf(distancia, 3 if modo == "foto" else 6, 60)
+	pitch = clampf(pitch, -1.45, -0.3) if inclinacion_fija < 0 else -deg_to_rad(inclinacion_fija)
+	objetivo.x = clampf(objetivo.x, 0, Juego.ANCHO); objetivo.z = clampf(objetivo.z, 0, Juego.ALTO)
 	position = objetivo
 	rotation = Vector3(pitch, yaw, 0)
 	cam.position = Vector3(0, 0, distancia)

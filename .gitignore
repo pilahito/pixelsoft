@@ -32,3 +32,10 @@ public/ia/
 # Carpeta danada por el sistema de ficheros (pendiente de chkdsk). No es
 # parte del proyecto: se quedo a medias al intentar borrarla.
 # (tools-roto ya no existe: el proyecto se mudo a G: por corrupcion de E:)
+
+# PixelSoft 2.1
+godot/build/
+*.gguf
+.pixelsoft-license/
+*.pem
+

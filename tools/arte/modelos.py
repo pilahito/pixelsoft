@@ -214,6 +214,51 @@ def personaje():
     bpy.ops.export_scene.gltf(filepath=os.path.join(SALIDA, 'personaje.glb'), export_format='GLB', export_animations=True, export_nla_strips=True, export_animation_mode='NLA_TRACKS')
     print('-> personaje')
 
+def akia():
+    """Tienda de muebles gigante (parodia): caja azul con franja amarilla."""
+    limpiar()
+    AZUL, AMARILLO = (0.05, 0.25, 0.65), (1.0, 0.82, 0.05)
+    caja('Suelo', (0, 0, 0.05), (14, 10, 0.1), (0.8, 0.8, 0.78))
+    caja('Techo_caja', (0, 0, 5.2), (14, 10, 0.4), AZUL)
+    caja('Pared_tras', (0, 4.9, 2.6), (14, 0.2, 5.2), AZUL)
+    caja('Pared_izq', (-6.9, 0, 2.6), (0.2, 10, 5.2), AZUL)
+    caja('Pared_der', (6.9, 0, 2.6), (0.2, 10, 5.2), AZUL)
+    caja('Pared_del_a', (-4.0, -4.9, 2.6), (6, 0.2, 5.2), AZUL)
+    caja('Pared_del_b', (4.0, -4.9, 2.6), (6, 0.2, 5.2), AZUL)
+    caja('Pared_del_franja', (0, -5.02, 4.2), (14.05, 0.1, 0.9), AMARILLO)
+    bpy.ops.object.text_add(location=(0, -5.1, 3.7), rotation=(math.pi / 2, 0, 0))
+    t = bpy.context.object; t.data.body = 'AKIA'; t.data.align_x = 'CENTER'; t.data.size = 1.6; t.data.extrude = 0.08
+    t.name = 'Pared_del_letras'
+    bpy.ops.object.convert(target='MESH')
+    bpy.context.object.data.materials.append(mat('amarillo', AMARILLO))
+    exportar('akia')
+
+def perro():
+    limpiar()
+    MARRON = (0.65, 0.45, 0.25)
+    caja('Cuerpo', (0, 0, 0.35), (0.3, 0.6, 0.25), MARRON)
+    caja('Cabeza', (0, 0.38, 0.5), (0.24, 0.24, 0.22), MARRON)
+    caja('Hocico', (0, 0.52, 0.46), (0.12, 0.1, 0.1), (0.2, 0.15, 0.1))
+    for x in (-0.1, 0.1):
+        caja('Oreja', (x, 0.36, 0.64), (0.06, 0.08, 0.1), (0.4, 0.25, 0.12))
+        for y in (-0.2, 0.2):
+            caja('Pata', (x, y, 0.12), (0.08, 0.08, 0.24), MARRON)
+    caja('Cola', (0, -0.36, 0.45), (0.05, 0.15, 0.05), MARRON)
+    exportar('perro')
+
+def flecha():
+    limpiar()
+    import bmesh
+    me = bpy.data.meshes.new('flecha'); bm = bmesh.new()
+    pts = [(-0.15, -0.4), (0.15, -0.4), (0.15, 0.05), (0.32, 0.05), (0, 0.45), (-0.32, 0.05), (-0.15, 0.05)]
+    vs = [bm.verts.new((x, y, 0.02)) for x, y in pts]; bm.faces.new(vs); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new('flecha', me); bpy.context.collection.objects.link(o)
+    o.data.materials.append(mat('amarillo', (1.0, 0.82, 0.05)))
+    exportar('flecha')
+
+akia()
+perro()
+flecha()
 edificio('casa', 4, 4, 2.4, PARED, (0.8, 0.3, 0.25), int_casa)
 edificio('oficina', 6, 4, 3.0, (0.85, 0.87, 0.9), (0.3, 0.4, 0.6), int_oficina)
 edificio('super', 5, 4, 2.8, (0.95, 0.95, 0.9), (0.25, 0.6, 0.35), int_super)

@@ -11,6 +11,7 @@ var calidad = "medio"
 var sol: DirectionalLight3D
 var entorno: Environment
 var camara_rig: Node3D
+var camara: Camera3D
 var ui: Control
 var _arboles_hechos = false
 
@@ -20,8 +21,9 @@ func _ready() -> void:
 	ui = preload("res://scripts/interfaz.gd").new()
 	ui.principal = self
 	var capa = CanvasLayer.new(); add_child(capa); capa.add_child(ui)
-	var auto = "bajo" if OS.has_feature("mobile") else "medio"
-	poner_calidad(_leer_ajuste("calidad", auto))
+	var auto = "medio" if OS.has_feature("mobile") else _calidad_auto()
+	G.cargar(auto); calidad = G.preset
+	aplicar_graficos()
 	Juego.cambiado.connect(_sincronizar)
 	_sincronizar()
 	if OS.get_cmdline_user_args().has("--captura"): _captura_y_salir()
@@ -68,7 +70,7 @@ func _crear_mundo() -> void:
 	# Camara
 	camara_rig = Node3D.new(); camara_rig.set_script(preload("res://scripts/camara.gd"))
 	var cam = Camera3D.new(); cam.name = "Camera3D"; cam.fov = 45; cam.far = 200
-	camara_rig.add_child(cam); add_child(camara_rig)
+	camara_rig.add_child(cam); add_child(camara_rig); camara = cam
 	for t in ["casa", "oficina", "super", "cafeteria", "gimnasio", "biblioteca", "arcade", "parque", "fuente", "arbol", "personaje"]:
 		escenas[t] = load(MODELOS + t + ".glb")
 
@@ -126,6 +128,13 @@ func _edificio(e: Dictionary) -> void:
 		inst.rotation.y = 0 if arriba else PI
 		n.add_child(inst)
 		n.position = Vector3(e.x + e.w / 2.0, 0, e.y + e.h / 2.0)
+		# LOD por distancia: los muebles interiores pequenos desaparecen de lejos.
+		for mi in inst.find_children("*", "MeshInstance3D", true, false):
+			var tam = mi.get_aabb().size.length()
+			if tam < 2.0:
+				mi.visibility_range_end = maxf(45.0, 35.0 * G.v.get("lod", 1.0)); mi.visibility_range_end_margin = 4.0
+				mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var andamio = MeshInstance3D.new(); andamio.name = "Andamio"; var bm = BoxMesh.new(); bm.size = Vector3(e.w, 1, e.h)
 		andamio.mesh = bm; var m = _mat(Color(0.95, 0.75, 0.2, 0.55)); m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; andamio.material_override = m
 		n.add_child(andamio)
@@ -161,6 +170,10 @@ func _agente(a: Dictionary) -> void:
 		var color = Color.html(a.color)
 		for mi in cuerpo.find_children("*", "MeshInstance3D", true, false):
 			if "Torso" in mi.name or "Brazo" in mi.name: mi.material_override = _mat(color)
+			elif "Cabeza" in mi.name: mi.material_override = _mat(Color.html(a.get("piel", "#e0ac83")))
+			elif "Pelo" in mi.name: mi.material_override = _mat(Color.html(a.get("pelo", "#3b2414")))
+		var esc = 0.9 * a.get("altura", 1.0) * (0.6 if a.get("edad", 30) < 12 else (0.85 if a.get("edad", 30) < 18 else 1.0))
+		cuerpo.scale = Vector3(esc * a.get("cuerpo", 1.0), esc, esc * a.get("cuerpo", 1.0))
 		var anim: AnimationPlayer = cuerpo.find_children("*", "AnimationPlayer", true, false)[0] if cuerpo.find_children("*", "AnimationPlayer", true, false).size() else null
 		# Gema de animo (plumbob): verde = feliz, amarillo = regular, rojo = mal.
 		var gema = MeshInstance3D.new(); var gm = SphereMesh.new(); gm.radial_segments = 4; gm.rings = 1; gm.radius = 0.18; gm.height = 0.6
@@ -169,18 +182,46 @@ func _agente(a: Dictionary) -> void:
 		nombre.outline_size = 8; nombre.pixel_size = 0.015; nombre.position.y = 2.65; nombre.no_depth_test = true; raiz.add_child(nombre)
 		var inicio = Juego.puerta_de(a.lugar, a.id)
 		raiz.position = Vector3(inicio.x, 0, inicio.y)
-		d = {"raiz": raiz, "anim": anim, "gema": gema}
+		var coche = MeshInstance3D.new(); var cm = BoxMesh.new(); cm.size = Vector3(1.6, 0.8, 0.9); coche.mesh = cm
+		coche.position.y = 0.4; coche.visible = false; raiz.add_child(coche)
+		# Sombra de mancha (blob) barata para movil.
+		var mancha = MeshInstance3D.new(); var pm = PlaneMesh.new(); pm.size = Vector2(0.9, 0.9); mancha.mesh = pm
+		var mm2 = StandardMaterial3D.new(); mm2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; mm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var g2 = GradientTexture2D.new(); g2.fill = GradientTexture2D.FILL_RADIAL; g2.fill_from = Vector2(0.5, 0.5); g2.fill_to = Vector2(1, 0.5)
+		var gr = Gradient.new(); gr.set_color(0, Color(0, 0, 0, 0.45)); gr.set_color(1, Color(0, 0, 0, 0)); g2.gradient = gr
+		mm2.albedo_texture = g2; mancha.material_override = mm2; mancha.position.y = 0.03
+		mancha.visible = not sol.shadow_enabled; raiz.add_child(mancha)
+		d = {"raiz": raiz, "anim": anim, "gema": gema, "cuerpo": cuerpo, "coche": coche, "uniforme": "", "mancha": mancha}
 		nodos_agente[a.id] = d
+	# Uniforme de la carrera mientras trabaja.
+	var uni: String = Juego.carrera_de(a).uniforme if a.actividad == "trabajar" and a.get("carrera", "") != "parado" else a.color
+	if d.uniforme != uni:
+		d.uniforme = uni
+		for mi in d.cuerpo.find_children("*", "MeshInstance3D", true, false):
+			if "Torso" in mi.name or "Brazo" in mi.name: mi.material_override = _mat(Color.html(uni))
+	var veh: String = Juego.carrera_de(a).vehiculo if a.lugar == "trabajo" else ""
+	d.coche.visible = veh != ""
+	if veh != "": d.coche.material_override = _mat(Color.html(Juego.carrera_de(a).uniforme).darkened(0.2))
 	var m: float = a.moral
 	var c = Color(0.2, 0.9, 0.3) if m > 60 else (Color(0.95, 0.85, 0.2) if m > 30 else Color(0.95, 0.25, 0.2))
 	var gm2 = _mat(c); gm2.emission_enabled = true; gm2.emission = c * 0.6
 	d.gema.material_override = gm2
 
+var _frame = 0
+var _acum_sim = {}
 func _process(delta: float) -> void:
+	_frame += 1
+	_tiempo_visual(delta)
+	if _fps_lbl and _fps_lbl.visible: _fps_lbl.text = "%d FPS" % Engine.get_frames_per_second()
 	for a in Juego.agentes:
 		var d: Dictionary = nodos_agente.get(a.id, {})
 		if d.is_empty(): continue
 		var raiz: Node3D = d.raiz
+		# Sims lejos de la camara se actualizan 1 de cada 3 frames (time slicing).
+		var lejos = raiz.position.distance_squared_to(camara_rig.objetivo) > 900.0
+		_acum_sim[a.id] = _acum_sim.get(a.id, 0.0) + delta
+		if lejos and (_frame + Juego.agentes.find(a)) % 3 != 0: continue
+		delta = _acum_sim[a.id]; _acum_sim[a.id] = 0.0
 		var meta = Juego.puerta_de(a.lugar, a.id)
 		# Cada Sim tiene su sitio dentro del edificio (no se apilan).
 		var idx = Juego.agentes.find(a)
@@ -197,7 +238,9 @@ func _process(delta: float) -> void:
 			raiz.position += dif.normalized() * paso
 			raiz.rotation.y = lerp_angle(raiz.rotation.y, atan2(dif.x, dif.z), 0.25)
 			anim = "Walk"
+			d.cuerpo.visible = not d.coche.visible
 		else:
+			d.cuerpo.visible = a.lugar != "trabajo"
 			anim = {"dormir": "Sleep", "trabajar": "Sit", "videojuegos": "Sit", "cafeteria": "Sit"}.get(a.actividad, "Idle")
 		if d.anim and d.anim.current_animation != anim and d.anim.has_animation(anim): d.anim.play(anim, 0.2)
 		d.gema.rotation.y += delta * 2.0
@@ -211,6 +254,15 @@ func seleccionar(id: String) -> void:
 	ui.refrescar()
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if ev is InputEventKey and ev.pressed:
+		match ev.keycode:
+			KEY_F1: modo_camara("libre")
+			KEY_F2: modo_camara("seguir")
+			KEY_F3: modo_camara("primera")
+			KEY_F4: modo_camara("foto")
+			KEY_F12:
+				var r = "user://foto_%d.png" % Time.get_unix_time_from_system()
+				get_viewport().get_texture().get_image().save_png(r); ui._aviso("Foto guardada: " + ProjectSettings.globalize_path(r))
 	if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and ev.double_click:
 		_elegir_en(ev.position)
 	elif ev is InputEventScreenTouch and ev.double_tap:
@@ -227,29 +279,223 @@ func _elegir_en(p: Vector2) -> void:
 	if mejor != "": seleccionar(mejor)
 
 # ------------------------------------------------------------- calidad
+var G = preload("res://scripts/graficos.gd").new()
+var _fps_lbl: Label
+
 func poner_calidad(q: String) -> void:
 	calidad = q
-	_guardar_ajuste("calidad", q)
-	var vp = get_viewport()
-	match q:
-		"bajo":
-			sol.shadow_enabled = false; vp.scaling_3d_scale = 0.6; vp.msaa_3d = Viewport.MSAA_DISABLED
-		"medio":
-			sol.shadow_enabled = true; vp.scaling_3d_scale = 0.85; vp.msaa_3d = Viewport.MSAA_DISABLED
-			RenderingServer.directional_shadow_atlas_set_size(2048, true)
-		"alto":
-			sol.shadow_enabled = true; vp.scaling_3d_scale = 1.0; vp.msaa_3d = Viewport.MSAA_4X
-			RenderingServer.directional_shadow_atlas_set_size(4096, true)
+	G.poner_preset(q)
+	aplicar_graficos()
 
+## Aplica todos los ajustes en caliente.
+func aplicar_graficos() -> void:
+	var v = G.v
+	var vp = get_viewport()
+	var pc = RenderingServer.get_rendering_device() != null and not OS.has_feature("mobile")
+	var sq = ["no", "baja", "media", "alta", "ultra"].find(v.sombras)
+	sol.shadow_enabled = sq > 0
+	if sq > 0:
+		RenderingServer.directional_shadow_atlas_set_size([0, 1024, 2048, 4096, 8192][sq], true)
+		sol.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if sq >= 3 else DirectionalLight3D.SHADOW_ORTHOGONAL
+	sol.directional_shadow_max_distance = v.dist_sombras
+	sol.light_angular_distance = 1.5 if v.sombras_suaves else 0.0
+	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH if v.sombras_suaves else RenderingServer.SHADOW_QUALITY_HARD)
+	entorno.sdfgi_enabled = pc and v.gi
+	entorno.ssao_enabled = pc and v.ssao
+	entorno.ssr_enabled = pc and v.ssr
+	entorno.ssil_enabled = pc and v.ssil
+	entorno.volumetric_fog_enabled = pc and v.niebla
+	entorno.volumetric_fog_density = 0.0025; entorno.volumetric_fog_length = 120
+	if pc and v.gi:
+		entorno.sdfgi_energy = 0.7; entorno.ambient_light_energy = 0.25; entorno.ssao_intensity = 1.6
+	entorno.glow_enabled = v.bloom; entorno.glow_intensity = 0.35; entorno.glow_bloom = 0.03
+	# Antialiasing y escala
+	vp.msaa_3d = Viewport.MSAA_DISABLED; vp.use_taa = false; vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	match v.aa:
+		"fxaa": vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+		"msaa2": vp.msaa_3d = Viewport.MSAA_2X
+		"msaa4": vp.msaa_3d = Viewport.MSAA_4X
+		"taa": vp.use_taa = pc
+		"fsr2": if pc: vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2; vp.fsr_sharpness = 0.2
+	vp.scaling_3d_scale = v.escala / 100.0
+	vp.mesh_lod_threshold = 4.0 / v.lod
+	ProjectSettings.set_setting("rendering/textures/default_filters/texture_mipmap_bias", {"baja": 1.0, "media": 0.0, "alta": -0.5}[v.texturas])
+	camara.far = v.vista
+	Engine.max_fps = {"30": 30, "60": 60, "90": 90, "120": 120}.get(v.fps, 0)
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if v.vsync else DisplayServer.VSYNC_DISABLED)
+	# Profundidad de campo y "desenfoque de movimiento" (aprox. con DOF lejano en camara)
+	var attr = CameraAttributesPractical.new()
+	attr.dof_blur_far_enabled = v.dof; attr.dof_blur_far_distance = 60; attr.dof_blur_amount = 0.06
+	attr.dof_blur_near_enabled = v.desenfoque and pc; attr.dof_blur_near_distance = 4
+	camara.attributes = attr
+	# Brillo, gamma y gradacion
+	entorno.adjustment_enabled = true
+	entorno.adjustment_brightness = v.brillo; entorno.adjustment_contrast = v.gamma
+	entorno.adjustment_saturation = {"neutra": 1.0, "cartoon": 1.35, "cálida": 1.1, "cine": 1.05}[v.color]
+	entorno.tonemap_mode = Environment.TONE_MAPPER_ACES if v.color == "cine" else Environment.TONE_MAPPER_LINEAR
+	entorno.tonemap_exposure = 0.85 if v.color == "cine" else 1.0
+	if v.color == "cine": entorno.adjustment_saturation = 1.2
+	sol.light_color = Color(1, 0.93, 0.8) if v.color in ["cartoon", "cálida"] else Color(1, 0.98, 0.95)
+	if v.color == "cartoon":
+		entorno.ambient_light_energy = 0.9; entorno.ambient_light_color = Color(1, 0.95, 0.85)
+	camara_rig.inclinacion_fija = 52.0 if v.color == "cartoon" and OS.has_feature("mobile") else -1.0
+	for d in nodos_agente.values(): d.mancha.visible = not sol.shadow_enabled
+	_hierba(v.hierba)
+	if _fps_lbl == null:
+		_fps_lbl = Label.new(); _fps_lbl.position = Vector2(10, 56); ui.add_child(_fps_lbl)
+	_fps_lbl.visible = v.contador
+
+## Elige Ultra en GPUs dedicadas potentes.
+func _calidad_auto() -> String:
+	var gpu = RenderingServer.get_video_adapter_name().to_lower()
+	var tipo = RenderingServer.get_video_adapter_type()
+	if tipo == RenderingDevice.DEVICE_TYPE_DISCRETE_GPU and (gpu.contains("rtx") or gpu.contains("rx 6") or gpu.contains("rx 7") or gpu.contains("rx 9") or gpu.contains("arc")): return "ultra"
+	if tipo == RenderingDevice.DEVICE_TYPE_DISCRETE_GPU: return "alto"
+	return "medio"
+
+var _nodo_hierba: MultiMeshInstance3D
+func _hierba(densidad: float) -> void:
+	if densidad <= 0:
+		if _nodo_hierba: _nodo_hierba.visible = false
+		return
+	if _nodo_hierba:
+		_nodo_hierba.visible = true; _nodo_hierba.multimesh.visible_instance_count = int(_nodo_hierba.multimesh.instance_count * densidad / 100.0); return
+	var hoja = PrismMesh.new(); hoja.size = Vector3(0.06, 0.35, 0.02)
+	var m = ShaderMaterial.new(); m.shader = Shader.new()
+	m.shader.code = "shader_type spatial; render_mode cull_disabled; uniform float viento = 0.06;\nvoid vertex(){ vec3 w = (MODEL_MATRIX * vec4(VERTEX,1.0)).xyz; VERTEX.x += sin(TIME*2.0 + w.x*0.7 + w.z*0.5) * viento * (VERTEX.y + 0.17); }\nvoid fragment(){ ALBEDO = mix(vec3(0.2,0.45,0.15), vec3(0.42,0.7,0.28), UV.y); ROUGHNESS = 0.9; }"
+	hoja.material = m
+	var mm = MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.mesh = hoja
+	var pos = []
+	var rng = RandomNumberGenerator.new(); rng.seed = 7
+	while pos.size() < 20000:
+		var x = rng.randf_range(0, Juego.ANCHO); var z = rng.randf_range(0, Juego.ALTO)
+		if absf(z - (Juego.CALLE_Y + 0.5)) < 1.6: continue
+		var libre = true
+		for e in Juego.pueblo.edificios:
+			if x > e.x - 0.3 and x < e.x + e.w + 0.3 and z > e.y - 0.3 and z < e.y + e.h + 0.3: libre = false; break
+		if libre: pos.append(Vector3(x, 0.17, z))
+	mm.instance_count = pos.size()
+	for i in pos.size():
+		var t = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.6, 1.4)), pos[i])
+		mm.set_instance_transform(i, t)
+	_nodo_hierba = MultiMeshInstance3D.new(); _nodo_hierba.multimesh = mm
+	_nodo_hierba.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; add_child(_nodo_hierba)
+	mm.visible_instance_count = int(mm.instance_count * densidad / 100.0)
+
+## Elige Ultra en GPUs dedicadas potentes.
 func _captura_y_salir() -> void:
 	var args = OS.get_cmdline_user_args()
 	for i in 6: Juego.tick_hora()
 	if args.has("--sin-techos"): alternar_techos()
 	if args.has("--noche"): Juego.hora = 22; _sincronizar()
 	if args.has("--sim"): seleccionar(Juego.agentes[0].id); camara_rig.distancia = 14; camara_rig._aplicar()
+	if args.has("--clima"):
+		Juego.clima.tipo = args[args.find("--clima") + 1]; Juego.clima.horas = 99
+		if Juego.clima.tipo == "nieve": Juego.clima.nieve = 0.8
+		else: Juego.clima.charcos = 1.0
+	if args.has("--perf"):
+		var q = args[args.find("--perf") + 1]
+		if q == "movil": G.v = G.PRESETS.medio_movil.duplicate(); G.v.contador = false; aplicar_graficos()
+		else: poner_calidad(q)
+		G.v.fps = "sin límite"; G.v.vsync = false; aplicar_graficos()
+		Juego.velocidad = 8.0
+		for i in 120: await get_tree().process_frame
+		var t0 = Time.get_ticks_usec(); var frames = 0; var peor = 0.0; var dc = 0.0
+		while Time.get_ticks_usec() - t0 < 8000000:
+			var f0 = Time.get_ticks_usec()
+			await get_tree().process_frame
+			var ft = (Time.get_ticks_usec() - f0) / 1000.0
+			peor = maxf(peor, ft); frames += 1
+			dc += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+		var seg = (Time.get_ticks_usec() - t0) / 1000000.0
+		print("PERF %s fps=%.1f ms=%.2f peor=%.1fms drawcalls=%d objetos=%d ram=%.0fMB vram=%.0fMB" % [q, frames / seg, seg * 1000.0 / frames, peor, dc / frames,
+			Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME), OS.get_static_memory_usage() / 1048576.0,
+			Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0])
+		get_tree().quit(); return
+	if args.has("--bench"):
+		MotorIA.backend = "local"; MotorIA.modelo = args[args.find("--bench") + 1]
+		MotorIA.benchmark(); MotorIA.benchmark()
+		get_tree().quit(); return
+	if args.has("--ultra"): poner_calidad("ultra")
+	if args.has("--movil"): G.v = G.PRESETS.medio_movil.duplicate(); G.v.contador = true; aplicar_graficos()
 	if args.has("--pestana"): ui.abrir(args[args.find("--pestana") + 1])
 	for i in 90: await get_tree().process_frame
 	var img = get_viewport().get_texture().get_image()
 	var ruta: String = args[args.find("--captura") + 1]
 	img.save_png(ruta)
 	get_tree().quit()
+
+
+# ------------------------------------------------------------- tiempo atmosferico (visual)
+var _lluvia: GPUParticles3D
+var _nieve_p: GPUParticles3D
+var _manto: MeshInstance3D
+var _rayo = 0.0
+var _clima_visto = ""
+
+func _particulas(color: Color, tam: Vector2, vel: float, cantidad: int) -> GPUParticles3D:
+	var p = GPUParticles3D.new(); p.amount = cantidad; p.lifetime = 1.6 if vel > 5 else 5.0
+	p.visibility_aabb = AABB(Vector3(-30, -20, -30), Vector3(60, 40, 60))
+	var pm = ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX; pm.emission_box_extents = Vector3(25, 0.5, 25)
+	pm.direction = Vector3(0.15, -1, 0); pm.spread = 3 if vel > 5 else 25; pm.initial_velocity_min = vel; pm.initial_velocity_max = vel * 1.2; pm.gravity = Vector3(0, -2, 0)
+	p.process_material = pm
+	var q = QuadMesh.new(); q.size = tam
+	var m = StandardMaterial3D.new(); m.albedo_color = color; m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y if vel > 5 else BaseMaterial3D.BILLBOARD_ENABLED
+	q.material = m; p.draw_pass_1 = q
+	p.position.y = 18; p.emitting = false; add_child(p)
+	return p
+
+func _tiempo_visual(delta: float) -> void:
+	var movil = OS.has_feature("mobile")
+	var budget = 1.0 if not movil else 0.12   # presupuesto de particulas
+	if _lluvia == null:
+		_lluvia = _particulas(Color(0.7, 0.8, 1, 0.55), Vector2(0.03, 0.5), 18, int(5000 * budget))
+		_nieve_p = _particulas(Color(1, 1, 1, 0.9), Vector2(0.07, 0.07), 1.5, int(3000 * budget))
+		_manto = MeshInstance3D.new(); var pm = PlaneMesh.new(); pm.size = Vector2(Juego.ANCHO + 20, Juego.ALTO + 20); _manto.mesh = pm
+		var mm = StandardMaterial3D.new(); mm.albedo_color = Color(1, 1, 1, 0); mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; mm.roughness = 0.9
+		_manto.material_override = mm; _manto.position = Vector3(Juego.ANCHO / 2.0, 0.07, Juego.ALTO / 2.0); add_child(_manto)
+	var c = Juego.clima
+	var t: String = c.tipo
+	_lluvia.global_position = Vector3(camara_rig.objetivo.x, 18, camara_rig.objetivo.z)
+	_nieve_p.global_position = _lluvia.global_position
+	_lluvia.emitting = t in ["lluvia", "tormenta", "granizo"]
+	_nieve_p.emitting = t == "nieve"
+	if t == "granizo": _lluvia.draw_pass_1.size = Vector2(0.08, 0.08)
+	elif _lluvia.draw_pass_1.size.x != 0.03: _lluvia.draw_pass_1.size = Vector2(0.03, 0.5)
+	# Manto de nieve que cuaja y suelo mojado reflectante (charcos) en Alto/Ultra.
+	var mat: StandardMaterial3D = _manto.material_override
+	var alto = calidad in ["alto", "ultra"]
+	if c.nieve > 0.01:
+		mat.albedo_color = Color(0.97, 0.98, 1, c.nieve * 0.9); mat.roughness = 0.9; mat.metallic = 0.0
+	elif alto and c.charcos > 0.01:
+		mat.albedo_color = Color(0.25, 0.3, 0.35, c.charcos * 0.35); mat.roughness = 0.05; mat.metallic = 0.3
+	else: mat.albedo_color.a = 0.0
+	# Niebla
+	entorno.fog_enabled = t == "niebla" or (t in ["lluvia", "tormenta"] and not movil)
+	entorno.fog_density = 0.04 if t == "niebla" else 0.008
+	entorno.fog_light_color = Color(0.75, 0.78, 0.82)
+	# Tormenta: relampagos y trueno
+	if t == "tormenta" and randf() < delta * 0.15 * Juego.velocidad: _rayo = 1.0; _trueno()
+	_rayo = maxf(0.0, _rayo - delta * 4)
+	sol.light_energy = lerpf(sol.light_energy, (0.5 if t in ["lluvia", "tormenta", "nublado", "niebla", "nieve", "granizo"] else (1.5 if t == "calor" else 1.2)) if not Juego.es_noche() else 0.15, 0.05) + _rayo * 3.0
+	# Viento: la hierba se mece (shader de vertices, sin coste de CPU)
+	if _nodo_hierba: _nodo_hierba.multimesh.mesh.material.set_shader_parameter("viento", 0.25 if t in ["tormenta", "lluvia", "granizo"] else 0.06)
+	if _clima_visto != t:
+		_clima_visto = t
+		if ui: ui.refrescar()
+
+func _trueno() -> void:
+	var f = "res://assets/kenney/sfx/trueno.ogg"
+	if not ResourceLoader.exists(f): return
+	var a = AudioStreamPlayer.new(); a.stream = load(f); a.volume_db = -6; add_child(a); a.play()
+	a.finished.connect(a.queue_free)
+
+func modo_camara(m: String) -> void:
+	camara_rig.poner_modo(m)
+	if m in ["seguir", "primera"]:
+		var d = nodos_agente.get(seleccionado, {})
+		if not d.is_empty(): camara_rig.seguir_a = d.raiz
+	ui.visible = m != "foto"
