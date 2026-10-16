@@ -1,3 +1,4 @@
+import { crearPueblo, tickPueblo, cerrarDiaPueblo, accionPueblo, vistaPueblo } from './pueblo.js';
 import { crearVida, crearEntorno, tickVida, cerrarDiaVida, accionVida, vistaVida } from './vida.js';
 /**
  * MUNDO: el motor del juego. Es el MISMO codigo en el PC y en el movil.
@@ -93,6 +94,7 @@ class Mundo {
 
     this.progreso = crearProgreso();
     this.entorno = crearEntorno();
+    this.pueblo = crearPueblo('pixelsoft' + this.generacion);
     this.agentes.forEach((a, i) => { a.vida = crearVida(a, i); });
     this.sucesos = [];
     this.pendientes = [];
@@ -145,6 +147,7 @@ class Mundo {
     this._propagarVirus();
     this._economia();
     try { tickVida(this); } catch (_) { /* la vida nunca tumba el juego */ }
+    try { tickPueblo(this); } catch (_) {}
     try { tickProgreso(this); } catch (_) { /* la progresion nunca tumba el juego */ }
     this._bombear();
     this._emitir();
@@ -434,6 +437,7 @@ class Mundo {
     if (e.historial.length > 60) e.historial.shift();
 
     try { cerrarDiaVida(this); } catch (_) {}
+    try { cerrarDiaPueblo(this); } catch (_) {}
     try { cerrarDiaProgreso(this); } catch (_) { /* idem */ }
 
     if (e.dinero < 0) {
@@ -989,7 +993,7 @@ class Mundo {
         return this.dios('comprar_habitacion', {});
 
       default: {
-        const r = accionProgreso(this, accion, carga) || accionVida(this, accion, carga);
+        const r = accionProgreso(this, accion, carga) || accionVida(this, accion, carga) || accionPueblo(this, accion, carga);
         return r || { ok: false, mensaje: `Poder desconocido: ${accion}` };
       }
     }
@@ -1000,7 +1004,7 @@ class Mundo {
   /** Version del estado que viaja al navegador. */
   /** Partida guardable (autosave). */
   exportarPartida() {
-    return { v: 1, dia: this.dia, hora: this.hora, tick: this.tick, empresa: this.empresa, agentes: this.agentes, progreso: this.progreso, entorno: this.entorno };
+    return { v: 1, dia: this.dia, hora: this.hora, tick: this.tick, empresa: this.empresa, agentes: this.agentes, progreso: this.progreso, entorno: this.entorno, pueblo: this.pueblo };
   }
 
   importarPartida(d) {
@@ -1010,6 +1014,7 @@ class Mundo {
     this.agentes = d.agentes.map((a) => ({ ...a, pensando: false }));
     this.progreso = { ...crearProgreso(), ...(d.progreso || {}) };
     this.entorno = { ...crearEntorno(), ...(d.entorno || {}) };
+    this.pueblo = d.pueblo && Array.isArray(d.pueblo.edificios) ? d.pueblo : crearPueblo('pixelsoft');
     this.agentes.forEach((a, i) => { if (!a.vida) a.vida = crearVida(a, i); });
     this.pendientes = [];
     this.registrar('sistema', `Partida cargada: día ${this.dia}.`);
@@ -1073,6 +1078,7 @@ class Mundo {
       })),
       progreso: vistaProgreso(this),
       vida: vistaVida(this),
+      pueblo: vistaPueblo(this),
       sucesos: this.sucesos.slice(-60),
       ia: this.cerebro.resumenEstadisticas()
     };

@@ -1,3 +1,4 @@
+import { casaPara } from './pueblo.js';
 /**
  * VIDA · la parte "Sims": necesidades, pueblo, tiendas, casa, amistades,
  * rasgos, habilidades, clima y estaciones.
@@ -68,11 +69,18 @@ export const HABILIDADES = {
 export const ESTACIONES = ['🌸 Primavera', '☀️ Verano', '🍂 Otoño', '❄️ Invierno'];
 const CLIMAS = { 0: ['☀️', '🌦️', '☁️'], 1: ['☀️', '☀️', '⛈️'], 2: ['☁️', '🌧️', '🌦️'], 3: ['❄️', '☁️', '🌧️'] };
 
-export function crearVida(agente, i) {
+export function rasgosDe(id) {
   const r = Object.keys(RASGOS);
+  let h = 7; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const a = r[h % r.length], b = r[(h >>> 5) % r.length];
+  return a === b ? [a] : [a, b];
+}
+
+export function crearVida(agente, i) {
   return {
+    puntos: 0,
     necesidades: { hambre: 70 + Math.random() * 20, sueno: 75, diversion: 60, higiene: 80, social: 60 },
-    rasgos: [r[(i * 3) % r.length], r[(i * 5 + 2) % r.length]].filter((x, k, a) => a.indexOf(x) === k),
+    rasgos: rasgosDe(agente.id),
     lugar: 'oficina',
     actividad: 'trabajar',
     dinero: 120,
@@ -105,6 +113,7 @@ function ganarXp(m, a, hab, n = 1) {
   if (nivel < 10 && v.xp[hab] >= nivel * 12) {
     v.xp[hab] = 0;
     v.habilidades[hab] = nivel + 1;
+    v.puntos = (v.puntos || 0) + 1;
     m.registrar('sistema', `⭐ ${a.nombre} sube ${HABILIDADES[hab].nombre} a nivel ${nivel + 1}.`);
   }
 }
@@ -217,10 +226,32 @@ export function cerrarDiaVida(m) {
 /** Acciones del jugador sobre la vida de un empleado. */
 export function accionVida(m, accion, carga) {
   const a = m.agentes.find((x) => x.id === carga.agenteId);
-  if (!['comprar_objeto', 'cambiar_casa', 'comprar_casa', 'tutorial'].includes(accion)) return null;
+  if (!['comprar_objeto', 'cambiar_casa', 'comprar_casa', 'tutorial', 'gastar_punto', 'decorar'].includes(accion)) return null;
   if (accion === 'tutorial') { m.entorno.tutorial = Number(carga.paso) || 0; return { ok: true, mensaje: '' }; }
   if (!a || !a.vida) return { ok: false, mensaje: 'Elige un empleado.' };
   const v = a.vida;
+  if (accion === 'gastar_punto') {
+    const h = carga.id;
+    if (!HABILIDADES[h]) return { ok: false, mensaje: 'Esa habilidad no existe.' };
+    if (!(v.puntos > 0)) return { ok: false, mensaje: `${a.nombre} no tiene puntos. Se ganan subiendo habilidades.` };
+    if (v.habilidades[h] >= 10) return { ok: false, mensaje: 'Ya está al máximo.' };
+    v.puntos--; v.habilidades[h]++;
+    if (h === 'programar') a.habilidad = lim(a.habilidad + 4);
+    return { ok: true, mensaje: `⭐ ${a.nombre}: ${HABILIDADES[h].nombre} sube a ${v.habilidades[h]}.` };
+  }
+  if (accion === 'decorar') {
+    // Modo construir: coloca (o quita) un mueble suyo en una casilla de su casa.
+    const huecos = (CASAS.find((c) => c.id === v.casa) || CASAS[0]).huecos;
+    const celda = Number(carga.celda);
+    if (!(celda >= 0 && celda < 24)) return { ok: false, mensaje: 'Casilla no válida.' };
+    v.decoracion = v.decoracion || {};
+    if (!carga.id) { delete v.decoracion[celda]; return { ok: true, mensaje: 'Quitado.' }; }
+    if (!v.muebles.includes(carga.id)) return { ok: false, mensaje: 'Primero cómpralo en la tienda.' };
+    for (const k of Object.keys(v.decoracion)) if (v.decoracion[k] === carga.id) delete v.decoracion[k];
+    if (Object.keys(v.decoracion).length >= huecos) return { ok: false, mensaje: 'No caben más muebles en esta casa.' };
+    v.decoracion[celda] = carga.id;
+    return { ok: true, mensaje: 'Mueble colocado.' };
+  }
   if (accion === 'comprar_objeto') {
     const o = TIENDA.find((t) => t.id === carga.id);
     if (!o) return { ok: false, mensaje: 'Ese objeto no existe.' };
@@ -244,12 +275,14 @@ export function accionVida(m, accion, carga) {
   if (!c) return { ok: false, mensaje: 'Esa casa no existe.' };
   if (accion === 'cambiar_casa') {
     v.casa = c.id; v.casaPropia = false;
+    if (c.id !== 'piso' && m.pueblo) casaPara(m, a, c.id, false);
     v.muebles = v.muebles.slice(0, c.huecos);
     return { ok: true, mensaje: `🏠 ${a.nombre} alquila: ${c.nombre} (${c.alquiler} EUR/día).` };
   }
   if (!c.compra) return { ok: false, mensaje: 'Esa no se vende.' };
   if (v.dinero < c.compra) return { ok: false, mensaje: `Hacen falta ${c.compra} EUR.` };
   v.dinero -= c.compra; v.casa = c.id; v.casaPropia = true;
+  if (m.pueblo) casaPara(m, a, c.id, true);
   const t = `🔑 ¡${a.nombre} se compra ${c.nombre}! Se acabó el alquiler.`;
   m.registrar('sistema', t);
   return { ok: true, mensaje: t };
