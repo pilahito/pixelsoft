@@ -88,6 +88,8 @@ func _crear_arboles() -> void:
 		if malla is CylinderMesh: malla.top_radius = 0.5; malla.bottom_radius = 0.5; malla.height = 1; malla.radial_segments = 6
 		else: malla.radial_segments = 7; malla.rings = 4
 		malla.material = _mat(parte[1])
+		# Viento en las copas (solo PC; en movil sigue el material simple)
+		if malla is SphereMesh and RenderingServer.get_rendering_device() != null and not OS.has_feature("mobile"): malla.material = GPC.material_arbol(parte[1])
 		mm.mesh = malla; mm.instance_count = lista.size()
 		for i in lista.size():
 			var a = lista[i]
@@ -115,6 +117,10 @@ func _luz_del_dia() -> void:
 	elif not de_dia: cielo = Color(0.06, 0.08, 0.18)
 	entorno.background_color = cielo
 	entorno.ambient_light_energy = 0.55 if de_dia else 0.25
+	if _pc_ext:
+		var nublado = 0.85 if Juego.clima.get("tipo", "") in ["lluvia", "tormenta", "niebla", "granizo", "nieve"] else 0.0
+		GPC.hora(h, nublado)
+		entorno.ambient_light_energy = (0.9 if de_dia else 0.3) * (0.5 if entorno.sdfgi_enabled else 1.0)
 	_luces_casas()
 
 func _edificio(e: Dictionary) -> void:
@@ -216,6 +222,7 @@ var _acum_sim = {}
 func _process(delta: float) -> void:
 	_frame += 1
 	_tiempo_visual(delta)
+	if _pc_ext: GPC.paso(delta)
 	if _fps_lbl and _fps_lbl.visible: _fps_lbl.text = "%d FPS" % Engine.get_frames_per_second()
 	for a in Juego.agentes:
 		var d: Dictionary = nodos_agente.get(a.id, {})
@@ -285,6 +292,8 @@ func _elegir_en(p: Vector2) -> void:
 
 # ------------------------------------------------------------- calidad
 var G = preload("res://scripts/graficos.gd").new()
+var GPC = preload("res://scripts/graficos_pc.gd").new()
+var _pc_ext := false   # extras de PC (cielo, AgX, SDFGI afinado...) activos
 var _fps_lbl: Label
 
 func poner_calidad(q: String) -> void:
@@ -319,11 +328,26 @@ func aplicar_graficos() -> void:
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
 	match v.aa:
 		"fxaa": vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+		"smaa": vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_SMAA
 		"msaa2": vp.msaa_3d = Viewport.MSAA_2X
 		"msaa4": vp.msaa_3d = Viewport.MSAA_4X
 		"taa": vp.use_taa = pc
-		"fsr2": if pc: vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2; vp.fsr_sharpness = 0.2
-	vp.scaling_3d_scale = v.escala / 100.0
+	# Escalado: FSR 2.2 (Forward+/Mobile con Vulkan/D3D12), FSR 1 o bilineal.
+	# Solo afecta al 3D: la interfaz se dibuja siempre a resolucion completa.
+	var esc: String = v.get("escalado", "Desactivado (100 %)")
+	var rd = RenderingServer.get_rendering_device() != null
+	vp.fsr_sharpness = 2.0 * (1.0 - clampf(v.get("nitidez", 0.8), 0.0, 1.0))
+	if esc.begins_with("FSR 2") and rd:
+		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2; vp.scaling_3d_scale = G.ESCALA_DE[esc]
+		vp.msaa_3d = Viewport.MSAA_DISABLED; vp.use_taa = false   # FSR 2 ya hace su propio antialiasing temporal
+	elif esc.begins_with("FSR") and rd:
+		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR; vp.scaling_3d_scale = G.ESCALA_DE.get(esc, 0.77)
+	elif esc.begins_with("FSR"):
+		vp.scaling_3d_scale = G.ESCALA_DE.get(esc, 0.77)   # Compatibility: bilineal
+	elif esc.begins_with("Bilineal"):
+		vp.scaling_3d_scale = v.escala / 100.0
+	else:
+		vp.scaling_3d_scale = 1.0
 	vp.mesh_lod_threshold = 4.0 / v.lod
 	Texturas.configurar(v.texturas, OS.has_feature("mobile") or OS.get_cmdline_user_args().has("--movil"))
 	ProjectSettings.set_setting("rendering/textures/default_filters/texture_mipmap_bias", {"baja": 1.0, "media": 0.0, "alta": -0.5}[v.texturas])
@@ -346,6 +370,10 @@ func aplicar_graficos() -> void:
 	if v.color == "cartoon":
 		entorno.ambient_light_energy = 0.9; entorno.ambient_light_color = Color(1, 0.95, 0.85)
 	camara_rig.inclinacion_fija = 52.0 if v.color == "cartoon" and OS.has_feature("mobile") else -1.0
+	_pc_ext = pc and v.get("cielo", false)
+	GPC.aplicar(entorno, sol, v, _pc_ext, calidad == "ultra")
+	Texturas.agua = GPC.material_agua() if pc else null
+	if _pc_ext: _luz_del_dia()
 	for d in nodos_agente.values(): d.mancha.visible = not sol.shadow_enabled
 	_detalle_casas()
 	_hierba(v.hierba)
@@ -437,7 +465,11 @@ func _captura_y_salir() -> void:
 	if args.has("--perf"):
 		var q = args[args.find("--perf") + 1]
 		if q == "movil": G.v = G.PRESETS.medio_movil.duplicate(); G.v.contador = false; aplicar_graficos()
+		elif q == "v21":
+			# Ultra tal y como estaba en la 2.1 (sin los extras nuevos de PC), para comparar
+			poner_calidad("ultra"); G.v.cielo = false
 		else: poner_calidad(q)
+		if args.has("--fsr2"): G.v.escalado = "FSR 2.2 · Calidad"
 		G.v.fps = "sin límite"; G.v.vsync = false; aplicar_graficos()
 		Juego.velocidad = 8.0
 		for i in 120: await get_tree().process_frame
@@ -458,6 +490,8 @@ func _captura_y_salir() -> void:
 		MotorIA.benchmark(); MotorIA.benchmark()
 		get_tree().quit(); return
 	if args.has("--ultra"): poner_calidad("ultra")
+	if args.has("--v21"): G.v.cielo = false; aplicar_graficos()
+	if args.has("--fsr2"): G.v.escalado = "FSR 2.2 · Calidad"; aplicar_graficos()
 	if args.has("--movil"): G.v = G.PRESETS.medio_movil.duplicate(); G.v.contador = true; calidad = "medio"; aplicar_graficos()
 	if args.has("--pestana"): ui.abrir(args[args.find("--pestana") + 1])
 	if args.has("--sin-ui"):
@@ -590,7 +624,7 @@ func _vestir_casa(inst: Node3D, id: String) -> void:
 			if m and m.resource_name in ["Cristal", "Lampara"]: mi.set_surface_override_material(i, _mat_compartido(m.resource_name))
 	# Puntos de luz interiores (se encienden de noche; solo con sombras/PC)
 	for p in inst.find_children("Luz_*", "", true, false):
-		var l = OmniLight3D.new(); l.light_color = Color(1, 0.8, 0.55); l.omni_range = 3.2 if not "porche" in p.name else 2.4
+		var l = OmniLight3D.new(); l.light_color = Color(1, 0.74, 0.46); l.omni_range = 3.2 if not "porche" in p.name else 2.4
 		l.light_energy = 0.0; l.shadow_enabled = false; l.visible = false; l.distance_fade_enabled = true; l.distance_fade_begin = 40; l.distance_fade_length = 10
 		p.add_child(l); _luces.append(l)
 	_detalle_de(inst)
@@ -616,7 +650,7 @@ func _luces_casas() -> void:
 	for l in _luces:
 		if not is_instance_valid(l): continue
 		l.visible = pc and noche
-		l.light_energy = 1.1 * anoche
+		l.light_energy = (1.5 if _pc_ext else 1.1) * anoche
 
 # ================================================================ SIMS
 ## Animacion segun lo que hace el Sim cuando ya ha llegado.

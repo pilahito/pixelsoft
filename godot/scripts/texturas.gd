@@ -27,6 +27,8 @@ render_mode cull_back, diffuse_burley, specular_schlick_ggx;
 uniform sampler2DArray capas : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform float escalas[10];
 uniform float nitidez = 6.0;
+uniform sampler2DArray normales : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool usar_normales = false;
 varying vec3 wpos;
 varying vec3 wnrm;
 void vertex() {
@@ -41,7 +43,16 @@ void fragment() {
 	float c = float(id);
 	vec3 t = texture(capas, vec3(p.zy, c)).rgb * b.x + texture(capas, vec3(p.xz, c)).rgb * b.y + texture(capas, vec3(p.xy, c)).rgb * b.z;
 	ALBEDO = COLOR.rgb * t;
-	ROUGHNESS = id == 6 ? 0.5 : 0.85;
+	ROUGHNESS = clamp((id == 6 ? 0.5 : 0.85) - (dot(t, vec3(0.333)) - 0.85) * 0.6, 0.2, 1.0);
+	if (usar_normales) {
+		// Normales triplanares ("whiteout"): se suman en espacio de mundo
+		vec3 nx = texture(normales, vec3(p.zy, c)).rgb * 2.0 - 1.0;
+		vec3 ny = texture(normales, vec3(p.xz, c)).rgb * 2.0 - 1.0;
+		vec3 nz = texture(normales, vec3(p.xy, c)).rgb * 2.0 - 1.0;
+		vec3 n = wnrm;
+		vec3 nw = normalize(n + vec3(0.0, nx.y, nx.x) * b.x + vec3(ny.x, 0.0, ny.y) * b.y + vec3(nz.x, nz.y, 0.0) * b.z);
+		NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
+	}
 }
 """
 
@@ -50,6 +61,7 @@ static var normales := false
 static var _tex := {}
 static var _mats := {}       # clave -> StandardMaterial3D (se actualizan en caliente)
 static var _capas_mat: ShaderMaterial
+static var agua: Material = null   # agua con reflejos (PC); null = la del modelo
 
 ## Llamar al arrancar y al cambiar la calidad de texturas.
 static func configurar(calidad_tex: String, movil: bool) -> void:
@@ -58,7 +70,10 @@ static func configurar(calidad_tex: String, movil: bool) -> void:
 	if t == tam and n == normales and not _tex.is_empty(): return
 	tam = t; normales = n; _tex.clear()
 	for k in _mats: _aplicar(_mats[k], _mats[k].get_meta("tipo"))
-	if _capas_mat: _capas_mat.set_shader_parameter("capas", _array())
+	if _capas_mat:
+		_capas_mat.set_shader_parameter("capas", _array())
+		_capas_mat.set_shader_parameter("usar_normales", normales)
+		if normales: _capas_mat.set_shader_parameter("normales", _array_normales())
 
 static func _imagen(nombre: String) -> Image:
 	var src: Texture2D = load(DIR + nombre + ".png")
@@ -82,6 +97,18 @@ static func _array() -> Texture2DArray:
 		for c in CAPAS: imgs.append(_imagen(c))
 		var a = Texture2DArray.new(); a.create_from_images(imgs); _tex["__capas"] = a
 	return _tex["__capas"]
+
+## Normales de cada capa (plana si la capa no tiene mapa _n).
+static func _array_normales() -> Texture2DArray:
+	if not _tex.has("__normales"):
+		var imgs: Array[Image] = []
+		for c in CAPAS:
+			var img: Image = _imagen(c + "_n") if ResourceLoader.exists(DIR + c + "_n.png") else null
+			if img == null:
+				img = Image.create(tam, tam, false, Image.FORMAT_RGBA8); img.fill(Color(0.5, 0.5, 1.0)); img.generate_mipmaps()
+			imgs.append(img)
+		var a = Texture2DArray.new(); a.create_from_images(imgs); _tex["__normales"] = a
+	return _tex["__normales"]
 
 static func _aplicar(m: StandardMaterial3D, tipo: String) -> void:
 	m.albedo_texture = tex(tipo)
@@ -114,6 +141,8 @@ static func material_capas() -> ShaderMaterial:
 		for c in CAPAS: esc.append(ESCALA[c])
 		_capas_mat.set_shader_parameter("escalas", esc)
 		_capas_mat.set_shader_parameter("capas", _array())
+		_capas_mat.set_shader_parameter("usar_normales", normales)
+		if normales: _capas_mat.set_shader_parameter("normales", _array_normales())
 	return _capas_mat
 
 static func tipo_de(nombre_material: String) -> String:
@@ -132,6 +161,8 @@ static func vestir(inst: Node, tintes: Dictionary = {}, saltar: Array = []) -> v
 			if m == null: continue
 			var n: String = m.resource_name
 			if n in saltar: continue
+			if n == "agua" and agua:
+				mi.set_surface_override_material(i, agua); continue
 			if n == "Color":
 				mi.set_surface_override_material(i, material_capas()); continue
 			var tipo = tipo_de(n)
