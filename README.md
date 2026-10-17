@@ -155,6 +155,21 @@ adb install -r PixelSoft.apk
 > en `.gitignore` a propósito (las claves no van al repositorio), así que
 > guárdalo aparte si vas a compilar en otro sitio.
 
+### PixelSoft 2.x (Godot): `.exe` y `.apk`
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\exportar-godot.ps1
+```
+
+Exporta `godot/build/PixelSoft.exe` y `godot/build/PixelSoft.apk` con Godot
+4.7. El APK se firma con **la misma clave que la 2.0.0** (por defecto
+`G:\pixelsoft\apk\debug.keystore`, alias `pixelsoft`; cámbialo con
+`-Keystore`), así que Android lo instala encima sin perder la partida. La
+contraseña se pide al ejecutar y Godot la recibe por variables de entorno
+(`GODOT_ANDROID_KEYSTORE_RELEASE_*`): nunca se guarda en `export_presets.cfg`
+ni en el repositorio. Al final se comprueba con `apksigner` que el certificado
+es el de siempre (SHA-256 `0bb98f39…e7c5`); si no coincide, el script falla.
+
 ### ⚠️ Aviso sobre el antivirus
 
 Un `.exe` de Node es, literalmente, *"una copia de `node.exe` con datos pegados
