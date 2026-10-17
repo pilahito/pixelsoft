@@ -72,7 +72,7 @@ func _crear_mundo() -> void:
 	camara_rig = Node3D.new(); camara_rig.set_script(preload("res://scripts/camara.gd"))
 	var cam = Camera3D.new(); cam.name = "Camera3D"; cam.fov = 45; cam.far = 200
 	camara_rig.add_child(cam); add_child(camara_rig); camara = cam
-	for t in ["casa", "casa_campo", "casa_moderna", "casa_mediterranea", "oficina", "super", "cafeteria", "gimnasio", "biblioteca", "arcade", "parque", "fuente", "arbol", "personaje"]:
+	for t in ["casa", "casa_campo", "casa_moderna", "casa_mediterranea", "oficina", "super", "cafeteria", "gimnasio", "biblioteca", "arcade", "parque", "fuente", "arbol", "persona"]:
 		escenas[t] = load(MODELOS + t + ".glb")
 
 func _mat(c: Color) -> StandardMaterial3D:
@@ -173,15 +173,13 @@ func _agente(a: Dictionary) -> void:
 	var d: Dictionary = nodos_agente.get(a.id, {})
 	if d.is_empty():
 		var raiz = Node3D.new(); raiz.name = "sim_" + a.id; add_child(raiz)
-		var cuerpo: Node3D = escenas.personaje.instantiate(); cuerpo.scale = Vector3.ONE * 0.9; raiz.add_child(cuerpo)
-		var color = Color.html(a.color)
-		for mi in cuerpo.find_children("*", "MeshInstance3D", true, false):
-			if "Torso" in mi.name or "Brazo" in mi.name: mi.material_override = _mat(color)
-			elif "Cabeza" in mi.name: mi.material_override = _mat(Color.html(a.get("piel", "#e0ac83")))
-			elif "Pelo" in mi.name: mi.material_override = _mat(Color.html(a.get("pelo", "#3b2414")))
+		var cuerpo: Node3D = escenas.persona.instantiate(); cuerpo.scale = Vector3.ONE * 0.9; raiz.add_child(cuerpo)
+		var vest = _vestir_sim(cuerpo, a)
 		var esc = 0.9 * a.get("altura", 1.0) * (0.6 if a.get("edad", 30) < 12 else (0.85 if a.get("edad", 30) < 18 else 1.0))
 		cuerpo.scale = Vector3(esc * a.get("cuerpo", 1.0), esc, esc * a.get("cuerpo", 1.0))
 		var anim: AnimationPlayer = cuerpo.find_children("*", "AnimationPlayer", true, false)[0] if cuerpo.find_children("*", "AnimationPlayer", true, false).size() else null
+		if anim:
+			for an in anim.get_animation_list(): anim.get_animation(an).loop_mode = Animation.LOOP_LINEAR
 		# Gema de animo (plumbob): verde = feliz, amarillo = regular, rojo = mal.
 		var gema = MeshInstance3D.new(); var gm = SphereMesh.new(); gm.radial_segments = 4; gm.rings = 1; gm.radius = 0.18; gm.height = 0.6
 		gema.mesh = gm; gema.position.y = 2.2; raiz.add_child(gema)
@@ -198,14 +196,13 @@ func _agente(a: Dictionary) -> void:
 		var gr = Gradient.new(); gr.set_color(0, Color(0, 0, 0, 0.45)); gr.set_color(1, Color(0, 0, 0, 0)); g2.gradient = gr
 		mm2.albedo_texture = g2; mancha.material_override = mm2; mancha.position.y = 0.03
 		mancha.visible = not sol.shadow_enabled; raiz.add_child(mancha)
-		d = {"raiz": raiz, "anim": anim, "gema": gema, "cuerpo": cuerpo, "coche": coche, "uniforme": "", "mancha": mancha}
+		d = {"raiz": raiz, "anim": anim, "gema": gema, "cuerpo": cuerpo, "coche": coche, "uniforme": "", "mancha": mancha, "mat": vest.mat, "caras": vest.caras, "cara": ""}
 		nodos_agente[a.id] = d
 	# Uniforme de la carrera mientras trabaja.
 	var uni: String = Juego.carrera_de(a).uniforme if a.actividad == "trabajar" and a.get("carrera", "") != "parado" else a.color
 	if d.uniforme != uni:
 		d.uniforme = uni
-		for mi in d.cuerpo.find_children("*", "MeshInstance3D", true, false):
-			if "Torso" in mi.name or "Brazo" in mi.name: mi.material_override = _mat(Color.html(uni))
+		d.mat.set_shader_parameter("camisa", Color.html(uni))
 	var veh: String = Juego.carrera_de(a).vehiculo if a.lugar == "trabajo" else ""
 	d.coche.visible = veh != ""
 	if veh != "": d.coche.material_override = _mat(Color.html(Juego.carrera_de(a).uniforme).darkened(0.2))
@@ -248,8 +245,9 @@ func _process(delta: float) -> void:
 			d.cuerpo.visible = not d.coche.visible
 		else:
 			d.cuerpo.visible = a.lugar != "trabajo"
-			anim = {"dormir": "Sleep", "trabajar": "Sit", "videojuegos": "Sit", "cafeteria": "Sit"}.get(a.actividad, "Idle")
-		if d.anim and d.anim.current_animation != anim and d.anim.has_animation(anim): d.anim.play(anim, 0.2)
+			anim = ANIM_ACTIVIDAD.get(a.actividad, "Idle")
+		if d.anim and d.anim.current_animation != anim and d.anim.has_animation(anim): d.anim.play(anim, 0.25)
+		_cara(d, a, anim)
 		d.gema.rotation.y += delta * 2.0
 		d.gema.position.y = 2.2 + sin(Time.get_ticks_msec() / 400.0) * 0.06
 		d.gema.visible = seleccionado == "" or seleccionado == a.id
@@ -408,6 +406,22 @@ func _captura_y_salir() -> void:
 			var n = Node3D.new(); n.name = "escaparate_%d" % i; add_child(n); n.add_child(inst); nodos_edificio[n.name] = n; _techos(n)
 		camara_rig.distancia = 16.0; camara_rig.yaw = 0.18; camara_rig.pitch = -0.58; camara_rig._aplicar()
 		camara_rig.position = Vector3(13.2, 0.8, Juego.ALTO + 3.0)
+	if args.has("--desfile"):
+		# Fila de Sims fuera del pueblo: cada uno con una animacion y animo distintos.
+		var anims = ["Idle", "Walk", "Wave", "Dance", "Eat", "Sit", "Idle", "Wave", "Dance", "Sleep"]
+		var nombres = ["Aisha", "Kenji", "Lucía", "Kwame", "Priya", "Lars", "Mei", "Thiago", "Amara", "Iker"]
+		for i in anims.size():
+			var fa = {"id": "desfile%d" % (i * 13 + 5), "color": Color.from_hsv(fmod(i * 0.137, 1.0), 0.6, 0.9).to_html(), "moral": [90, 70, 85, 95, 50, 40, 20, 80, 90, 60][i],
+				"piel": Juego.PIELES[(i * 3) % Juego.PIELES.size()], "pelo": Juego.PELOS[i % Juego.PELOS.size()], "peinado": PEINADOS[i % PEINADOS.size()], "falda": i in [2, 5, 8]}
+			var c: Node3D = escenas.persona.instantiate(); var v = _vestir_sim(c, fa)
+			c.position = Vector3(6 + i * 1.3, 0, Juego.ALTO + 3.0); add_child(c)
+			var ap: AnimationPlayer = c.find_children("*", "AnimationPlayer", true, false)[0]
+			for an in ap.get_animation_list(): ap.get_animation(an).loop_mode = Animation.LOOP_LINEAR
+			ap.play(anims[i]); ap.seek(0.3 + i * 0.17, true)
+			_cara({"cara": "", "caras": v.caras}, fa, anims[i])
+		camara_rig.distancia = float(args[args.find("--desfile") + 1]) if args.size() > args.find("--desfile") + 1 and args[args.find("--desfile") + 1].is_valid_float() else 8.0
+		camara_rig.yaw = 0.0; camara_rig.pitch = -0.32; camara_rig._aplicar()
+		camara_rig.position = Vector3(6 + 4.5 * 1.3, 0.9, Juego.ALTO + 3.0)
 	if args.has("--casa"):
 		# Encuadra la casa N (para capturas de los modelos nuevos)
 		var casas = Juego.pueblo.edificios.filter(func(e): return e.tipo == "casa" and e.progreso >= 100)
@@ -603,3 +617,68 @@ func _luces_casas() -> void:
 		if not is_instance_valid(l): continue
 		l.visible = pc and noche
 		l.light_energy = 1.1 * anoche
+
+# ================================================================ SIMS
+## Animacion segun lo que hace el Sim cuando ya ha llegado.
+const ANIM_ACTIVIDAD = {"dormir": "Sleep", "trabajar": "Sit", "videojuegos": "Sit", "cafeteria": "Eat", "cocinar": "Eat",
+	"picoteo": "Eat", "charlar": "Wave", "parque": "Dance", "gimnasio": "Dance"}
+const PEINADOS = ["corto", "largo", "coleta", "mono", "afro", "rapado"]
+const PANTALONES = ["#2f3e5c", "#3b3b3b", "#6b4f3a", "#556b2f", "#8a8f99", "#1f4e79", "#7a2e3a", "#c2b280", "#d9d4c7"]
+const ZAPATOS = ["#222222", "#f2f2f2", "#7a4a2a", "#b03030", "#2a5db0", "#e0b030"]
+const SHADER_SIM = """
+shader_type spatial;
+render_mode cull_back, diffuse_burley, specular_schlick_ggx;
+uniform vec3 piel : source_color = vec3(0.88, 0.67, 0.51);
+uniform vec3 camisa : source_color = vec3(0.25, 0.55, 0.85);
+uniform vec3 pantalon : source_color = vec3(0.2, 0.22, 0.35);
+uniform vec3 zapatos : source_color = vec3(0.13, 0.13, 0.13);
+uniform vec3 pelo : source_color = vec3(0.23, 0.14, 0.08);
+uniform bool manga_larga = false;
+uniform bool pierna_larga = true;
+void fragment() {
+	int s = int(floor(COLOR.a * 8.0 + 0.5));
+	vec3 c = COLOR.rgb;
+	if (s == 1) c *= piel;
+	else if (s == 2) c *= camisa;
+	else if (s == 3) c *= pantalon;
+	else if (s == 4) c *= zapatos;
+	else if (s == 5) c *= pelo;
+	else if (s == 6) c *= manga_larga ? camisa : piel;
+	else if (s == 7) c *= pierna_larga ? pantalon : piel;
+	ALBEDO = c;
+	ROUGHNESS = s == 5 ? 0.55 : (s == 0 ? 0.35 : 0.85);
+	RIM = 0.25; RIM_TINT = 0.6;
+}
+"""
+var _shader_sim: Shader
+
+## Piel, ropa y peinado (siempre los mismos para cada Sim). Un material por Sim.
+func _vestir_sim(cuerpo: Node3D, a: Dictionary) -> Dictionary:
+	if _shader_sim == null: _shader_sim = Shader.new(); _shader_sim.code = SHADER_SIM
+	var h = _hash_id(a.id)
+	var m = ShaderMaterial.new(); m.shader = _shader_sim
+	m.set_shader_parameter("piel", Color.html(a.get("piel", "#e0ac83")))
+	m.set_shader_parameter("pelo", Color.html(a.get("pelo", "#3b2414")))
+	m.set_shader_parameter("camisa", Color.html(a.color))
+	m.set_shader_parameter("pantalon", Color.html(PANTALONES[(h >> 3) % PANTALONES.size()]))
+	m.set_shader_parameter("zapatos", Color.html(ZAPATOS[(h >> 7) % ZAPATOS.size()]))
+	var falda = a.get("falda", (h >> 11) % 4 == 0)
+	m.set_shader_parameter("manga_larga", (h >> 13) % 3 == 0)
+	m.set_shader_parameter("pierna_larga", not falda and (h >> 15) % 5 != 0)
+	var peinado: String = a.get("peinado", PEINADOS[(h >> 17) % PEINADOS.size()])
+	var caras = {}
+	for mi in cuerpo.find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = m
+		var n: String = mi.name
+		if n.begins_with("Pelo_"): mi.visible = n == "Pelo_" + peinado
+		elif n == "Falda": mi.visible = falda
+		elif n.begins_with("Cara_"): caras[n.substr(5)] = mi; mi.visible = n == "Cara_normal"
+	return {"mat": m, "caras": caras}
+
+## Expresion segun el animo (o dormido).
+func _cara(d: Dictionary, a: Dictionary, anim: String) -> void:
+	var m: float = a.moral
+	var c = "dormida" if anim == "Sleep" else ("feliz" if m > 60 or anim == "Dance" else ("normal" if m > 30 else "triste"))
+	if c == d.cara or not d.caras.has(c): return
+	d.cara = c
+	for k in d.caras: d.caras[k].visible = k == c
