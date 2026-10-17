@@ -56,6 +56,21 @@ Verás algo así al arrancar:
 
 ---
 
+<p align="center"><img src="godot/assets/logo/logo_1024.png" width="160" alt="Logo de PixelSoft"></p>
+
+## PixelSoft 2.1 · Interfaz nueva, casas y vida tipo Sims
+
+- **Logo propio**: una gema verde con una P pixelada (icono del .exe, del APK y pantalla de arranque).
+- **Interfaz moderna**: tarjetas de cristal, iconos vectoriales, fuente Nunito, cajón lateral y escala de interfaz (80-150 %). Texto siempre nítido.
+- **4 estilos de casa** (clásica, de campo, moderna y mediterránea) con jardín, valla, porche, interior amueblado y ventanas que se encienden de noche.
+- **Carreras** (incluida la de espía), **Pixelgram**, **familias diversas** con bodas y comuniones, **clima que dura** (lluvia, nieve que cuaja, tormentas) y gráficos **Ultra** con menú avanzado.
+- **Motor de IA en el dispositivo** (llama.cpp, modelos GGUF tipo Gemma/Qwen) y expansiones con códigos.
+
+![Menú](capturas/ps21_pc_menu.png)
+![Casas de noche](capturas/ps21_pc_casas_noche.png)
+![Sim de noche](capturas/ps21_pc_hud_noche.png)
+![Nieve](capturas/ps21_pc_nieve.png)
+
 ## PixelSoft 2.0 · 3D nativo (Godot 4)
 
 PixelSoft 2 es un juego nativo hecho con **Godot 4** (sin navegador) para **Windows (.exe)** y **Android (.apk)**. El código está en [`godot/`](godot/).
