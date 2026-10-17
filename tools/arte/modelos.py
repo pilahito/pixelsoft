@@ -259,7 +259,7 @@ def flecha():
 akia()
 perro()
 flecha()
-edificio('casa', 4, 4, 2.4, PARED, (0.8, 0.3, 0.25), int_casa)
+# Las casas (4 estilos con jardin, valla, porche e interior) salen de tools/arte/casas.py
 edificio('oficina', 6, 4, 3.0, (0.85, 0.87, 0.9), (0.3, 0.4, 0.6), int_oficina)
 edificio('super', 5, 4, 2.8, (0.95, 0.95, 0.9), (0.25, 0.6, 0.35), int_super)
 edificio('cafeteria', 4, 4, 2.6, (0.95, 0.85, 0.75), (0.55, 0.3, 0.2), int_cafe)

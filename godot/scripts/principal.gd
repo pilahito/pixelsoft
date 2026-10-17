@@ -71,7 +71,7 @@ func _crear_mundo() -> void:
 	camara_rig = Node3D.new(); camara_rig.set_script(preload("res://scripts/camara.gd"))
 	var cam = Camera3D.new(); cam.name = "Camera3D"; cam.fov = 45; cam.far = 200
 	camara_rig.add_child(cam); add_child(camara_rig); camara = cam
-	for t in ["casa", "oficina", "super", "cafeteria", "gimnasio", "biblioteca", "arcade", "parque", "fuente", "arbol", "personaje"]:
+	for t in ["casa", "casa_campo", "casa_moderna", "casa_mediterranea", "oficina", "super", "cafeteria", "gimnasio", "biblioteca", "arcade", "parque", "fuente", "arbol", "personaje"]:
 		escenas[t] = load(MODELOS + t + ".glb")
 
 func _mat(c: Color) -> StandardMaterial3D:
@@ -114,6 +114,7 @@ func _luz_del_dia() -> void:
 	elif not de_dia: cielo = Color(0.06, 0.08, 0.18)
 	entorno.background_color = cielo
 	entorno.ambient_light_energy = 0.55 if de_dia else 0.25
+	_luces_casas()
 
 func _edificio(e: Dictionary) -> void:
 	var n: Node3D = nodos_edificio.get(e.id)
@@ -122,7 +123,10 @@ func _edificio(e: Dictionary) -> void:
 		n = Node3D.new(); n.name = e.id; add_child(n)
 		var modelo: String = t.get("modelo", e.tipo)
 		if not escenas.has(modelo): modelo = "casa"
+		# Casas: 4 estilos y colores distintos por casa (siempre el mismo para cada id).
+		if modelo == "casa": modelo = CASAS[_hash_id(e.id) % CASAS.size()]
 		var inst: Node3D = escenas[modelo].instantiate(); inst.name = "Modelo"
+		if modelo.begins_with("casa"): _vestir_casa(inst, e.id)
 		# Los modelos miran a +Y en Blender: la puerta hacia la calle.
 		var arriba: bool = e.y < Juego.CALLE_Y
 		inst.rotation.y = 0 if arriba else PI
@@ -131,7 +135,7 @@ func _edificio(e: Dictionary) -> void:
 		# LOD por distancia: los muebles interiores pequenos desaparecen de lejos.
 		for mi in inst.find_children("*", "MeshInstance3D", true, false):
 			var tam = mi.get_aabb().size.length()
-			if tam < 2.0:
+			if tam < 2.0 or mi.name == "Interior" or "Detalle" in mi.name:
 				mi.visibility_range_end = maxf(45.0, 35.0 * G.v.get("lod", 1.0)); mi.visibility_range_end_margin = 4.0
 				mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -157,6 +161,7 @@ func _edificio(e: Dictionary) -> void:
 func _techos(n: Node) -> void:
 	for c in n.find_children("Techo*", "", true, false): c.visible = techos_visibles
 	for c in n.find_children("Pared_del*", "", true, false): c.visible = techos_visibles
+	_detalle_de(n)
 
 func alternar_techos() -> void:
 	techos_visibles = not techos_visibles
@@ -341,9 +346,11 @@ func aplicar_graficos() -> void:
 		entorno.ambient_light_energy = 0.9; entorno.ambient_light_color = Color(1, 0.95, 0.85)
 	camara_rig.inclinacion_fija = 52.0 if v.color == "cartoon" and OS.has_feature("mobile") else -1.0
 	for d in nodos_agente.values(): d.mancha.visible = not sol.shadow_enabled
+	_detalle_casas()
 	_hierba(v.hierba)
 	if _fps_lbl == null:
-		_fps_lbl = Label.new(); _fps_lbl.position = Vector2(10, 56); ui.add_child(_fps_lbl)
+		_fps_lbl = Label.new(); ui.add_child(_fps_lbl); _fps_lbl.text = "000 FPS"
+		_fps_lbl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, 14); _fps_lbl.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_fps_lbl.visible = v.contador
 
 ## Elige Ultra en GPUs dedicadas potentes.
@@ -390,6 +397,22 @@ func _captura_y_salir() -> void:
 	if args.has("--sin-techos"): alternar_techos()
 	if args.has("--noche"): Juego.hora = 22; _sincronizar()
 	if args.has("--sim"): seleccionar(Juego.agentes[0].id); camara_rig.distancia = 14; camara_rig._aplicar()
+	if args.has("--escaparate"):
+		# Los 4 estilos de casa en fila, fuera del pueblo (capturas/comparativas)
+		for i in CASAS.size():
+			var inst: Node3D = escenas[CASAS[i]].instantiate()
+			inst.position = Vector3(6 + i * 4.8, 0, Juego.ALTO + 3.0); _vestir_casa(inst, "escaparate%d" % (i * 7 + 3))
+			var n = Node3D.new(); n.name = "escaparate_%d" % i; add_child(n); n.add_child(inst); nodos_edificio[n.name] = n; _techos(n)
+		camara_rig.distancia = 16.0; camara_rig.yaw = 0.18; camara_rig.pitch = -0.58; camara_rig._aplicar()
+		camara_rig.position = Vector3(13.2, 0.8, Juego.ALTO + 3.0)
+	if args.has("--casa"):
+		# Encuadra la casa N (para capturas de los modelos nuevos)
+		var casas = Juego.pueblo.edificios.filter(func(e): return e.tipo == "casa" and e.progreso >= 100)
+		if casas.size():
+			var e = casas[int(args[args.find("--casa") + 1]) % casas.size()]
+			camara_rig.objetivo = Vector3(e.x + e.w / 2.0, 0.8, e.y + e.h / 2.0); camara_rig.distancia = 11.0
+			camara_rig.yaw = -0.6 if e.y < Juego.CALLE_Y else PI - 0.6; camara_rig.pitch = -0.85; camara_rig._aplicar()
+			print("CASA ", e.nombre, " modelo=", CASAS[_hash_id(e.id) % CASAS.size()], " total=", casas.size())
 	if args.has("--clima"):
 		Juego.clima.tipo = args[args.find("--clima") + 1]; Juego.clima.horas = 99
 		if Juego.clima.tipo == "nieve": Juego.clima.nieve = 0.8
@@ -418,8 +441,11 @@ func _captura_y_salir() -> void:
 		MotorIA.benchmark(); MotorIA.benchmark()
 		get_tree().quit(); return
 	if args.has("--ultra"): poner_calidad("ultra")
-	if args.has("--movil"): G.v = G.PRESETS.medio_movil.duplicate(); G.v.contador = true; aplicar_graficos()
+	if args.has("--movil"): G.v = G.PRESETS.medio_movil.duplicate(); G.v.contador = true; calidad = "medio"; aplicar_graficos()
 	if args.has("--pestana"): ui.abrir(args[args.find("--pestana") + 1])
+	if args.has("--sin-ui"):
+		ui.visible = false
+		for l in find_children("*", "Label3D", true, false): l.visible = false
 	for i in 90: await get_tree().process_frame
 	var img = get_viewport().get_texture().get_image()
 	var ruta: String = args[args.find("--captura") + 1]
@@ -499,3 +525,82 @@ func modo_camara(m: String) -> void:
 		var d = nodos_agente.get(seleccionado, {})
 		if not d.is_empty(): camara_rig.seguir_a = d.raiz
 	ui.visible = m != "foto"
+
+
+# ------------------------------------------------------------- casas 2.2
+const CASAS = ["casa", "casa_campo", "casa_moderna", "casa_mediterranea"]
+const PALETA_FACHADA = ["#f4ead8", "#f7d9c4", "#dce8f2", "#e6f0d8", "#f6e7a8", "#f2d0d6", "#d9d3ec", "#ffffff", "#c9dfe0", "#efc9a4"]
+const PALETA_TEJADO = ["#c4473a", "#5a6b8c", "#3f6e52", "#8a4f3a", "#2f3a4a", "#b86a2c", "#7a3e5c"]
+const PALETA_PUERTA = ["#2f6fb0", "#c0392b", "#2e8b57", "#f1c40f", "#6d4c41", "#1f2937", "#e67e22", "#8e44ad"]
+var _cristal_casas: StandardMaterial3D
+var _lampara_casas: StandardMaterial3D
+var _luces: Array = []
+
+func _hash_id(t: String) -> int:
+	var h = 5381
+	for c in t: h = ((h << 5) + h + c.unicode_at(0)) & 0x7fffffff
+	return h
+
+func _mat_compartido(nombre: String) -> StandardMaterial3D:
+	if nombre == "Cristal":
+		if _cristal_casas == null:
+			_cristal_casas = StandardMaterial3D.new(); _cristal_casas.albedo_color = Color(0.55, 0.78, 0.95); _cristal_casas.roughness = 0.08
+			_cristal_casas.metallic = 0.2; _cristal_casas.emission_enabled = true; _cristal_casas.emission = Color(1.0, 0.78, 0.45)
+		return _cristal_casas
+	if _lampara_casas == null:
+		_lampara_casas = StandardMaterial3D.new(); _lampara_casas.albedo_color = Color(1, 0.93, 0.72)
+		_lampara_casas.emission_enabled = true; _lampara_casas.emission = Color(1, 0.85, 0.55)
+	return _lampara_casas
+
+## Tine fachada/tejado/puerta por casa y comparte cristal y lamparas (que
+## brillan de noche con un solo cambio de material para todo el pueblo).
+func _vestir_casa(inst: Node3D, id: String) -> void:
+	var h = _hash_id(id)
+	var colores = {
+		"Fachada": Color.html(PALETA_FACHADA[h % PALETA_FACHADA.size()]),
+		"Tejado": Color.html(PALETA_TEJADO[(h >> 4) % PALETA_TEJADO.size()]),
+		"Puerta": Color.html(PALETA_PUERTA[(h >> 8) % PALETA_PUERTA.size()]),
+		"Contraventana": Color.html(PALETA_PUERTA[(h >> 12) % PALETA_PUERTA.size()]).lightened(0.15),
+	}
+	var cache = {}
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var malla: Mesh = mi.mesh
+		if malla == null: continue
+		for i in malla.get_surface_count():
+			var m = malla.surface_get_material(i)
+			if m == null: continue
+			var n: String = m.resource_name
+			if n in ["Cristal", "Lampara"]: mi.set_surface_override_material(i, _mat_compartido(n))
+			elif colores.has(n):
+				if not cache.has(n):
+					var d: BaseMaterial3D = m.duplicate(); d.albedo_color = colores[n]; cache[n] = d
+				mi.set_surface_override_material(i, cache[n])
+	# Puntos de luz interiores (se encienden de noche; solo con sombras/PC)
+	for p in inst.find_children("Luz_*", "", true, false):
+		var l = OmniLight3D.new(); l.light_color = Color(1, 0.8, 0.55); l.omni_range = 3.2 if not "porche" in p.name else 2.4
+		l.light_energy = 0.0; l.shadow_enabled = false; l.visible = false; l.distance_fade_enabled = true; l.distance_fade_begin = 40; l.distance_fade_length = 10
+		p.add_child(l); _luces.append(l)
+	_detalle_de(inst)
+	_luces_casas()
+
+func _detalle_de(n: Node) -> void:
+	var alto = calidad in ["alto", "ultra"] or G.v.get("lod", 1.0) >= 2.0
+	for d in n.find_children("*Detalle*", "MeshInstance3D", true, false):
+		d.set_meta("detalle", true); d.visible = alto and (techos_visibles or not d.name.begins_with("Techo"))
+
+func _detalle_casas() -> void:
+	for n in nodos_edificio.values(): _detalle_de(n)
+	_luces_casas()
+
+func _luces_casas() -> void:
+	var h: float = Juego.hora
+	var noche = h >= 19 or h < 7
+	var anoche = clampf((h - 18.0) / 2.0, 0, 1) if h >= 18 else (1.0 if h < 6 else clampf((7.0 - h), 0, 1))
+	if _cristal_casas: _cristal_casas.emission_energy_multiplier = 1.4 * anoche
+	if _lampara_casas: _lampara_casas.emission_energy_multiplier = 0.3 + 2.0 * anoche
+	# Luces reales solo en PC (Forward+) y calidad media o superior
+	var pc = not OS.has_feature("mobile") and calidad != "bajo"
+	for l in _luces:
+		if not is_instance_valid(l): continue
+		l.visible = pc and noche
+		l.light_energy = 1.1 * anoche
