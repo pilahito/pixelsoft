@@ -713,6 +713,8 @@ func _pintar_graficos() -> void:
 				var vl = _lbl(str(sl.value), 12); vl.custom_minimum_size.x = 40
 				sl.value_changed.connect(func(x): vl.text = str(x); G.cambiar(k, x); principal.aplicar_graficos())
 				fila.add_child(sl); fila.add_child(vl)
+		if o.size() > 5:
+			var nota = _lbl(o[5], 12, Tema.TEXTO2); graficos_caja.add_child(nota)
 
 func _pintar_ia() -> void:
 	_limpiar(ia_caja); _barras_ia.clear()
