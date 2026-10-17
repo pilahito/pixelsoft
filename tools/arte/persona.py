@@ -151,17 +151,17 @@ bola((0, FY - 0.004, 1.5), (0.014, 0.008, 0.016), 'Cara_dormida', 'Cabeza', 0, B
 
 # Peinados (todos con ranura 5 = color de pelo)
 HC = (0, 0.01, 1.585)
-casquete(0.215, HC, (0, 0, 1.6), (-0, -0.55, 1), 'Pelo_corto', esc=(1, 1, 1.02))
-casquete(0.222, HC, (0, 0, 1.61), (0, -0.5, 1), 'Pelo_largo', esc=(1.02, 1.02, 1.03))
+casquete(0.215, HC, (0, 0, 1.6), (0, 0.55, 1), 'Pelo_corto', esc=(1, 1, 1.02))
+casquete(0.222, HC, (0, 0, 1.61), (0, 0.5, 1), 'Pelo_largo', esc=(1.02, 1.02, 1.03))
 caja((0, 0.11, 1.42), (0.38, 0.1, 0.36), 'Pelo_largo', 'Cabeza', 5)
 for s in (-1, 1): caja((0.19 * s, 0.02, 1.47), (0.06, 0.16, 0.26), 'Pelo_largo', 'Cabeza', 5)
-casquete(0.218, HC, (0, 0, 1.6), (0, -0.5, 1), 'Pelo_coleta')
+casquete(0.218, HC, (0, 0, 1.6), (0, 0.5, 1), 'Pelo_coleta')
 bola((0, 0.2, 1.62), (0.06, 0.06, 0.06), 'Pelo_coleta', 'Cabeza', 5, seg=8, anillos=6)
 tubo((0, 0.23, 1.6), (0, 0.27, 1.36), 0.055, 0.03, 'Pelo_coleta', 'Cabeza', 5, v=8)
-casquete(0.216, HC, (0, 0, 1.6), (0, -0.5, 1), 'Pelo_mono')
+casquete(0.216, HC, (0, 0, 1.6), (0, 0.5, 1), 'Pelo_mono')
 bola((0, 0.06, 1.81), (0.085, 0.08, 0.07), 'Pelo_mono', 'Cabeza', 5, seg=10, anillos=6)
-casquete(0.27, (0, 0.03, 1.64), (0, 0, 1.56), (0, -0.85, 1), 'Pelo_afro', esc=(1.05, 1, 0.95))
-casquete(0.207, HC, (0, 0, 1.63), (0, -0.4, 1), 'Pelo_rapado')
+casquete(0.27, (0, 0.03, 1.64), (0, 0, 1.56), (0, 0.85, 1), 'Pelo_afro', esc=(1.05, 1, 0.95))
+casquete(0.207, HC, (0, 0, 1.63), (0, 0.4, 1), 'Pelo_rapado')
 for i, s in enumerate((-1, 1)):  # flequillo del corto
     bola((0.07 * s, -0.17, 1.69), (0.08, 0.04, 0.035), 'Pelo_corto', 'Cabeza', 5, seg=8, anillos=5)
 
@@ -189,6 +189,8 @@ def accion(nombre, claves):
     for f, poses in claves:
         for b in pb: b.rotation_euler = (0, 0, 0); b.location = (0, 0, 0)
         for hb, (rot, loc) in poses.items():
+            if hb.startswith(('Brazo', 'Antebrazo')):
+                rot = (rot[0], rot[1], -rot[2])  # en los brazos +Z = hacia fuera/arriba
             pb[hb].rotation_euler = rot
             if loc: pb[hb].location = loc
         for b in pb:
