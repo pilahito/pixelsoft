@@ -619,6 +619,9 @@ func _montar_ajustes() -> void:
 	var pa = _seccion(ajustes_caja, "Partida")
 	pa.add_child(_btn("Guardar ahora", func(): Juego.guardar(); _aviso("Guardado."), "", "BotonAcento"))
 	pa.add_child(_btn("Partida nueva", _confirmar_nueva, "", "BotonPeligro"))
+	var ak = _seccion(ajustes_caja, "Acerca de PixelSoft")
+	ak.add_child(_lbl("PixelSoft %s es gratis y sin compras dentro del juego." % Juego.VERSION + (" Si te gusta, puedes invitar a un café al autor (voluntario, se abre en el navegador)." if MenuPrincipal.KOFI != "" else ""), 0, Color(0, 0, 0, 0), "Sub"))
+	if MenuPrincipal.KOFI != "": ak.add_child(_btn("Apoya PixelSoft en Ko-fi", func(): OS.shell_open(MenuPrincipal.KOFI), MenuPrincipal.KOFI, "BotonKofi"))
 	ajustes_caja.add_child(_lbl("Créditos: modelos 3D hechos con Blender (tools/arte), motor Godot (MIT), fuente Nunito (OFL). Ver CREDITS.md.", 0, Color(0, 0, 0, 0), "Sub"))
 
 func _confirmar_nueva() -> void:

@@ -5,6 +5,10 @@ extends Control
 const Tema = preload("res://scripts/ui/tema.gd")
 const Icono = preload("res://scripts/ui/icono.gd")
 
+## Pagina de apoyo voluntario en Ko-fi (se abre en el navegador; no hay pagos
+## dentro del juego). Vacia = los botones «Apoya PixelSoft» no se muestran.
+const KOFI = ""
+
 var ui
 var tarjeta: PanelContainer
 var _vel_antes := 1.0
@@ -46,6 +50,7 @@ func _ready() -> void:
 	v.add_child(_boton("Expansiones", "dlc", func(): ocultar(); ui.abrir("Expansiones")))
 	v.add_child(_boton("Guardar partida", "diario", func(): Juego.guardar(); ui._aviso("Guardado.")))
 	v.add_child(_boton("Partida nueva", "mas", func(): ui._confirmar_nueva()))
+	if KOFI != "": v.add_child(_boton("Apoya PixelSoft en Ko-fi", "corazon", func(): OS.shell_open(KOFI), "BotonKofi"))
 	if not OS.has_feature("mobile") and not OS.has_feature("web"):
 		v.add_child(_boton("Salir", "cerrar", func(): Juego.guardar(); get_tree().quit(), "BotonPeligro"))
 	var pie = Label.new(); pie.text = "Esc: menú · Espacio: pausa · F1-F4: cámara · F12: foto"; pie.theme_type_variation = "Sub"
