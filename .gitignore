@@ -39,3 +39,6 @@ godot/build/
 .pixelsoft-license/
 *.pem
 
+
+# Codigo de dueno inyectado SOLO al exportar PixelSoft Privado (nunca al repo)
+godot/privado/

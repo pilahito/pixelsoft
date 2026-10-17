@@ -18,6 +18,7 @@ static func es_mas_nueva(a: String, b: String) -> bool:
 	return false
 
 func comprobar(manual: bool) -> void:
+	if OS.has_feature("privado"): estado.emit("Versión privada: sin actualizaciones automáticas."); return
 	var c = ConfigFile.new(); c.load(CFG)
 	if not manual and Time.get_unix_time_from_system() - float(c.get_value("act", "ultima", 0)) < 6 * 3600: return
 	c.set_value("act", "ultima", Time.get_unix_time_from_system()); c.save(CFG)

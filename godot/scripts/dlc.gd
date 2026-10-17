@@ -17,10 +17,17 @@ const PACKS = [
 	{"id": "akia_hogar", "nombre": "AKIA Hogar", "desc": "Cien muebles nuevos, cocinas a medida y el modo montaje avanzado.", "portada": ["#0a3fa6", "#ffd10d"]},
 ]
 var desbloqueados: Array = []
+## Build "PixelSoft Privado" (feature tag "privado", solo en sus presets): al
+## exportar se le inyecta desde FUERA del repo un codigo PS1 firmado. Se verifica
+## igual que cualquier otro codigo; en la build publica no existe ni el tag ni el archivo.
+const CODIGO_PRIVADO = "res://privado/codigo_dueno.txt"
+static func es_privado() -> bool: return OS.has_feature("privado")
 
 func _ready() -> void:
 	var c = ConfigFile.new()
 	if c.load("user://dlc.cfg") == OK: desbloqueados = c.get_value("d", "packs", [])
+	if es_privado() and FileAccess.file_exists(CODIGO_PRIVADO):
+		canjear(FileAccess.get_file_as_string(CODIGO_PRIVADO))
 
 func tiene(id: String) -> bool: return id in desbloqueados
 

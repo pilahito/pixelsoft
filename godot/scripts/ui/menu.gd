@@ -37,7 +37,7 @@ func _ready() -> void:
 	marca.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS; marca.mouse_filter = MOUSE_FILTER_IGNORE
 	logo.add_child(marca)
 	var vt = VBoxContainer.new(); vt.add_theme_constant_override("separation", -6); logo.add_child(vt)
-	var t = Label.new(); t.text = "PixelSoft"; t.theme_type_variation = "TituloGrande"; vt.add_child(t)
+	var t = Label.new(); t.text = "PixelSoft Privado" if OS.has_feature("privado") else "PixelSoft"; t.theme_type_variation = "TituloGrande"; vt.add_child(t)
 	var s = Label.new(); s.text = "Vida en %s · v%s" % [Juego.pueblo.nombre, Juego.VERSION]; s.theme_type_variation = "Sub"; vt.add_child(s)
 	var sep = HSeparator.new(); sep.add_theme_stylebox_override("separator", Tema.caja(Color(1, 1, 1, 0.08), 0, 0)); v.add_child(sep)
 	var resumen = Label.new(); resumen.theme_type_variation = "Sub"; resumen.name = "Resumen"; v.add_child(resumen)

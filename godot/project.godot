@@ -3,6 +3,7 @@ config_version=5
 
 [application]
 config/name="PixelSoft"
+config/name.privado="PixelSoft Privado"
 config/version="2.1.0"
 run/main_scene="res://principal.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")

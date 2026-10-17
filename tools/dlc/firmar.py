@@ -2,6 +2,7 @@
 La clave privada se lee de %USERPROFILE%\\.pixelsoft-license\\privada.pem y NUNCA se sube al repo.
 Uso:  python firmar.py --nueva-clave            (una sola vez)
       python firmar.py mascotas espias          (imprime un codigo)
+      python firmar.py --nombre alguien ciudad  (codigo con nombre del titular)
 """
 import sys, os, json, base64, secrets, pathlib
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -21,5 +22,8 @@ if sys.argv[1:] == ["--nueva-clave"]:
     print("PUBLICA", base64.b64encode(pub).decode()); sys.exit()
 
 k = serialization.load_pem_private_key(PRIV.read_bytes(), None)
-carga = json.dumps({"packs": sys.argv[1:], "id": secrets.token_hex(6)}, separators=(",", ":")).encode()
+args = sys.argv[1:]; extra = {}
+if "--nombre" in args:
+    i = args.index("--nombre"); extra["n"] = args[i + 1]; del args[i:i + 2]
+carga = json.dumps({"packs": args, **extra, "id": secrets.token_hex(6)}, separators=(",", ":")).encode()
 print("PS1-" + b64(carga) + "." + b64(k.sign(carga)))
