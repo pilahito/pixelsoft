@@ -1,0 +1,11 @@
+{
+  "_leeme": "Copia este archivo FUERA del repositorio (p. ej. D:\\claves\\google_oauth.json) y rellena los datos de Google Cloud. Ver docs/GOOGLE_CLOUD.md.",
+  "escritorio": {
+    "client_id": "TU_CLIENT_ID_DE_ESCRITORIO.apps.googleusercontent.com",
+    "client_secret": "TU_CLIENT_SECRET_DE_ESCRITORIO"
+  },
+  "dispositivo": {
+    "client_id": "TU_CLIENT_ID_DE_TV_Y_DISPOSITIVOS.apps.googleusercontent.com",
+    "client_secret": "TU_CLIENT_SECRET_DE_TV_Y_DISPOSITIVOS"
+  }
+}

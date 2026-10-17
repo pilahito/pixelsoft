@@ -486,12 +486,16 @@ func gastar_punto(agente: Dictionary, hab: String) -> void:
 func exportar() -> Dictionary:
 	return {"v": 2, "dia": dia, "hora": hora, "tick": tick, "empresa": empresa, "agentes": agentes, "pueblo": pueblo, "sucesos": sucesos.slice(-50), "pixelgram": pixelgram.slice(-30), "clima": clima}
 
+## Aviso para la nube (scripts/nube.gd): se emite tras cada guardado correcto.
+signal guardado
+
 func guardar() -> void:
 	var f = FileAccess.open(RUTA_PARTIDA + ".tmp", FileAccess.WRITE)
 	if f == null: return
 	f.store_string(JSON.stringify(exportar()))
 	f.close()
 	DirAccess.rename_absolute(ProjectSettings.globalize_path(RUTA_PARTIDA + ".tmp"), ProjectSettings.globalize_path(RUTA_PARTIDA))
+	guardado.emit()
 
 func cargar() -> bool:
 	if not FileAccess.file_exists(RUTA_PARTIDA): return false

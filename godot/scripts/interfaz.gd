@@ -581,6 +581,7 @@ func _seccion(c: Container, t: String) -> VBoxContainer:
 	return v
 
 func _montar_ajustes() -> void:
+	preload("res://scripts/ui/cuenta.gd").montar(self, ajustes_caja)   # Cuenta de Google (oculta sin client id)
 	var c = _seccion(ajustes_caja, "Calidad gráfica")
 	var h = HBoxContainer.new(); c.add_child(h)
 	for q in (["bajo", "medio", "alto"] if OS.has_feature("mobile") else ["bajo", "medio", "alto", "ultra"]):

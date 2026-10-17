@@ -20,6 +20,7 @@ Dlc="*res://scripts/dlc.gd"
 Mods="*res://scripts/mods.gd"
 Juego="*res://scripts/juego.gd"
 Actualizador="*res://scripts/actualizador.gd"
+Nube="*res://scripts/nube.gd"
 
 [display]
 window/size/viewport_width=1280

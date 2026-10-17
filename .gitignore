@@ -39,3 +39,9 @@ godot/build/
 .pixelsoft-license/
 *.pem
 
+
+# Credenciales de Google para la nube: viven FUERA del repo y se inyectan al exportar
+# (tools/nube/exportar-con-google.ps1). Nunca se suben.
+godot/config_local/
+google_oauth.json
+nube_token*.dat
