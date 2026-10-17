@@ -31,7 +31,11 @@ func _ready() -> void:
 	tarjeta.custom_minimum_size.x = 380 if not movil else 460
 	var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 12 if not movil else 14); tarjeta.add_child(v)
 	var logo = HBoxContainer.new(); logo.add_theme_constant_override("separation", 14); v.add_child(logo)
-	logo.add_child(Icono.crear("gema", 52 if not movil else 64, Tema.ACENTO))
+	var marca = TextureRect.new(); marca.texture = load("res://assets/logo/gema_512.png")
+	marca.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; marca.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var lado := 64 if not movil else 78; marca.custom_minimum_size = Vector2(lado, lado)
+	marca.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS; marca.mouse_filter = MOUSE_FILTER_IGNORE
+	logo.add_child(marca)
 	var vt = VBoxContainer.new(); vt.add_theme_constant_override("separation", -6); logo.add_child(vt)
 	var t = Label.new(); t.text = "PixelSoft"; t.theme_type_variation = "TituloGrande"; vt.add_child(t)
 	var s = Label.new(); s.text = "Vida en %s · v%s" % [Juego.pueblo.nombre, Juego.VERSION]; s.theme_type_variation = "Sub"; vt.add_child(s)

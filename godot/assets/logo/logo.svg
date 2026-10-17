@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="f" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#182c4a"/><stop offset="1" stop-color="#091020"/>
+    </linearGradient>
+    <radialGradient id="g" cx="0.5" cy="0.5" r="0.45">
+      <stop offset="0" stop-color="#3ddc84" stop-opacity="0.35"/><stop offset="1" stop-color="#3ddc84" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="225" fill="url(#f)"/>
+  <rect width="1024" height="1024" rx="225" fill="url(#g)"/>
+  <polygon points="512,154.8 737.32,433.44 512,877.2 286.68,433.44" fill="#06341e"/>
+  <g>
+    <polygon points="512,154.8 286.68,433.44 558.44,433.44" fill="#96f6aa"/>
+    <polygon points="512,154.8 558.44,433.44 737.32,433.44" fill="#46d678"/>
+    <polygon points="286.68,433.44 558.44,433.44 512,877.2" fill="#2cb660"/>
+    <polygon points="558.44,433.44 737.32,433.44 512,877.2" fill="#168444"/>
+    <polygon points="512,201.24 355.48,416.24 432.88,416.24" fill="#dcffe4"/>
+  </g>
+  <g>
+    <rect x="388.16" y="352.6" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="426" y="352.6" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="463.84" y="352.6" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="501.68" y="352.6" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="539.52" y="352.6" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="388.16" y="390.44" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="426" y="390.44" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="463.84" y="390.44" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="501.68" y="390.44" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="539.52" y="390.44" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="577.36" y="390.44" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="388.16" y="428.28" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="426" y="428.28" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="539.52" y="428.28" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="577.36" y="428.28" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="388.16" y="466.12" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="426" y="466.12" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="463.84" y="466.12" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="501.68" y="466.12" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="539.52" y="466.12" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="577.36" y="466.12" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="388.16" y="503.96" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="426" y="503.96" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="463.84" y="503.96" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="501.68" y="503.96" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="539.52" y="503.96" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="388.16" y="541.8" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="426" y="541.8" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="388.16" y="579.64" width="37.84" height="37.84" fill="#ffffff"/>
+    <rect x="426" y="579.64" width="37.84" height="37.84" fill="#ffffff"/>
+  </g>
+</svg>
