@@ -120,7 +120,13 @@ func _luz_del_dia() -> void:
 	if _pc_ext:
 		var nublado = 0.85 if Juego.clima.get("tipo", "") in ["lluvia", "tormenta", "niebla", "granizo", "nieve"] else 0.0
 		GPC.hora(h, nublado)
-		entorno.ambient_light_energy = (0.9 if de_dia else 0.3) * (0.5 if entorno.sdfgi_enabled else 1.0)
+		entorno.ambient_light_energy = (0.9 if de_dia else 0.12) * (0.5 if entorno.sdfgi_enabled else 1.0)
+		# Noche de verdad: luna fria y tenue, niebla sin luz ambiente (asi brillan las ventanas)
+		if not de_dia: sol.light_energy = 0.1; sol.light_color = Color(0.6, 0.7, 1.0)
+		entorno.volumetric_fog_ambient_inject = 0.3 if de_dia else 0.02
+		entorno.volumetric_fog_density = 0.006 if de_dia else 0.003
+		entorno.ambient_light_sky_contribution = 0.75 if de_dia else 0.4
+		if entorno.sdfgi_enabled: entorno.sdfgi_energy = 0.9 if de_dia else 0.4
 	_luces_casas()
 
 func _edificio(e: Dictionary) -> void:
@@ -461,6 +467,7 @@ func _captura_y_salir() -> void:
 	if args.has("--clima"):
 		Juego.clima.tipo = args[args.find("--clima") + 1]; Juego.clima.horas = 99
 		if Juego.clima.tipo == "nieve": Juego.clima.nieve = 0.8
+		elif Juego.clima.tipo == "despejado": Juego.clima.nieve = 0.0; Juego.clima.charcos = 0.0
 		else: Juego.clima.charcos = 1.0
 	if args.has("--perf"):
 		var q = args[args.find("--perf") + 1]
