@@ -17,6 +17,7 @@ var _arboles_hechos = false
 
 func _ready() -> void:
 	Engine.max_fps = 30   # suficiente para un juego de gestion y ahorra bateria
+	Texturas.configurar("media", OS.has_feature("mobile"))
 	_crear_mundo()
 	ui = preload("res://scripts/interfaz.gd").new()
 	ui.principal = self
@@ -61,10 +62,10 @@ func _crear_mundo() -> void:
 	# Suelo y calle
 	var suelo = MeshInstance3D.new(); var pm = PlaneMesh.new(); pm.size = Vector2(Juego.ANCHO + 20, Juego.ALTO + 20)
 	suelo.mesh = pm; suelo.position = Vector3(Juego.ANCHO / 2.0, 0, Juego.ALTO / 2.0)
-	suelo.material_override = _mat(Color(0.42, 0.68, 0.36)); add_child(suelo)
+	suelo.material_override = Texturas.material("cesped", Color(0.5, 0.78, 0.45)); add_child(suelo)
 	var calle = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = Vector3(Juego.ANCHO + 20, 0.04, 1.6)
 	calle.mesh = bm; calle.position = Vector3(Juego.ANCHO / 2.0, 0.02, Juego.CALLE_Y + 0.5)
-	calle.material_override = _mat(Color(0.35, 0.35, 0.38)); add_child(calle)
+	calle.material_override = Texturas.material("asfalto", Color(0.38, 0.38, 0.42)); add_child(calle)
 	var linea = MeshInstance3D.new(); var lm = BoxMesh.new(); lm.size = Vector3(Juego.ANCHO + 20, 0.05, 0.08)
 	linea.mesh = lm; linea.position = calle.position + Vector3(0, 0.01, 0); linea.material_override = _mat(Color(0.95, 0.9, 0.6)); add_child(linea)
 	# Camara
@@ -127,6 +128,7 @@ func _edificio(e: Dictionary) -> void:
 		if modelo == "casa": modelo = CASAS[_hash_id(e.id) % CASAS.size()]
 		var inst: Node3D = escenas[modelo].instantiate(); inst.name = "Modelo"
 		if modelo.begins_with("casa"): _vestir_casa(inst, e.id)
+		else: Texturas.vestir(inst)
 		# Los modelos miran a +Y en Blender: la puerta hacia la calle.
 		var arriba: bool = e.y < Juego.CALLE_Y
 		inst.rotation.y = 0 if arriba else PI
@@ -325,6 +327,7 @@ func aplicar_graficos() -> void:
 		"fsr2": if pc: vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2; vp.fsr_sharpness = 0.2
 	vp.scaling_3d_scale = v.escala / 100.0
 	vp.mesh_lod_threshold = 4.0 / v.lod
+	Texturas.configurar(v.texturas, OS.has_feature("mobile") or OS.get_cmdline_user_args().has("--movil"))
 	ProjectSettings.set_setting("rendering/textures/default_filters/texture_mipmap_bias", {"baja": 1.0, "media": 0.0, "alta": -0.5}[v.texturas])
 	camara.far = v.vista
 	Engine.max_fps = {"30": 30, "60": 60, "90": 90, "120": 120}.get(v.fps, 0)
@@ -546,6 +549,7 @@ func _mat_compartido(nombre: String) -> StandardMaterial3D:
 		if _cristal_casas == null:
 			_cristal_casas = StandardMaterial3D.new(); _cristal_casas.albedo_color = Color(0.55, 0.78, 0.95); _cristal_casas.roughness = 0.08
 			_cristal_casas.metallic = 0.2; _cristal_casas.emission_enabled = true; _cristal_casas.emission = Color(1.0, 0.78, 0.45)
+			Texturas.texturizar(_cristal_casas, "cristal")
 		return _cristal_casas
 	if _lampara_casas == null:
 		_lampara_casas = StandardMaterial3D.new(); _lampara_casas.albedo_color = Color(1, 0.93, 0.72)
@@ -562,19 +566,14 @@ func _vestir_casa(inst: Node3D, id: String) -> void:
 		"Puerta": Color.html(PALETA_PUERTA[(h >> 8) % PALETA_PUERTA.size()]),
 		"Contraventana": Color.html(PALETA_PUERTA[(h >> 12) % PALETA_PUERTA.size()]).lightened(0.15),
 	}
-	var cache = {}
+	# Texturas pintadas (yeso, tejas, madera, ladrillo...) tintadas por casa.
+	Texturas.vestir(inst, colores, ["Cristal", "Lampara"])
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		var malla: Mesh = mi.mesh
 		if malla == null: continue
 		for i in malla.get_surface_count():
 			var m = malla.surface_get_material(i)
-			if m == null: continue
-			var n: String = m.resource_name
-			if n in ["Cristal", "Lampara"]: mi.set_surface_override_material(i, _mat_compartido(n))
-			elif colores.has(n):
-				if not cache.has(n):
-					var d: BaseMaterial3D = m.duplicate(); d.albedo_color = colores[n]; cache[n] = d
-				mi.set_surface_override_material(i, cache[n])
+			if m and m.resource_name in ["Cristal", "Lampara"]: mi.set_surface_override_material(i, _mat_compartido(m.resource_name))
 	# Puntos de luz interiores (se encienden de noche; solo con sombras/PC)
 	for p in inst.find_children("Luz_*", "", true, false):
 		var l = OmniLight3D.new(); l.light_color = Color(1, 0.8, 0.55); l.omni_range = 3.2 if not "porche" in p.name else 2.4

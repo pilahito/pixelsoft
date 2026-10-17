@@ -62,13 +62,18 @@ GRUPO = {}  # objeto -> grupo
 PROPIOS = {'Fachada', 'Tejado', 'Puerta', 'Contraventana', 'Cristal', 'Lampara'}
 COL['Color'] = (1.0, 1.0, 1.0)
 
+# Textura de cada pieza del material "Color": va en el alfa del color de
+# vertice (id / 9) y el shader de texturas.gd elige la capa (madera, piedra...).
+TEX_ID = {'Madera': 1, 'Piedra': 2, 'Camino': 2, 'Ladrillo': 3, 'Cesped': 4, 'Seto': 4, 'Hoja': 4,
+          'Suelo_int': 5, 'Azulejo': 6, 'Terracota': 7, 'Tela': 8, 'Alfombra': 8, 'Cojin': 8, 'Hormigon': 9}
+
 def _fin(o, nombre, m, grupo):
     o.name = nombre
     o.data.materials.clear()
     propio = m in PROPIOS
     o.data.materials.append(mat(m if propio else 'Color'))
     ca = o.data.color_attributes.new('Col', 'FLOAT_COLOR', 'CORNER')
-    c = (1.0, 1.0, 1.0, 1.0) if propio else (*COL[m], 1.0)
+    c = (1.0, 1.0, 1.0, 1.0) if propio else (*COL[m], TEX_ID.get(m, 0) / 9.0)
     for d in ca.data:
         d.color = c
     o.data.color_attributes.active_color = ca
