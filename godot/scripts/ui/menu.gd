@@ -74,9 +74,9 @@ func mostrar() -> void:
 	if visible: return
 	_vel_antes = Juego.velocidad if Juego.velocidad > 0 else 1.0
 	Juego.velocidad = 0.0
-	var r: Label = tarjeta.find_child("Resumen", true, false)
-	if r: r.text = "Día %d · %02d:00 · %d Sims · %s" % [Juego.dia, Juego.hora, Juego.agentes.size(), Juego.nivel_ciudad()]
+	_resumen()
 	visible = true; _girando = true
+	move_to_front()
 	modulate.a = 0.0
 	tarjeta.pivot_offset = Vector2(0, tarjeta.size.y / 2)
 	tarjeta.scale = Vector2(0.97, 0.97)
@@ -94,13 +94,31 @@ func ocultar() -> void:
 	ui._pintar_velocidad()
 	_hud(1.0)
 
-## El HUD se desvanece mientras el menu esta abierto (vista limpia del pueblo).
+## Dia/hora/Sims siempre al dia (el reloj puede avanzar justo al abrir el menu).
+func _resumen() -> void:
+	var r: Label = tarjeta.find_child("Resumen", true, false)
+	if r: r.text = "Día %d · %02d:00 · %d Sims · %s" % [Juego.dia, Juego.hora, Juego.agentes.size(), Juego.nivel_ciudad()]
+
+## El HUD se oculta mientras el menu esta abierto (vista limpia del pueblo).
+## Se ocultan de verdad (no solo transparencia) y tambien los paneles que se
+## abran o se reconstruyan con el menu abierto; al cerrar vuelven los que habia.
+var _ocultos: Array = []
 func _hud(a: float) -> void:
-	for c in ui.get_children():
-		if c == self or not (c is Control): continue
-		var tw = c.create_tween(); tw.tween_property(c, "modulate:a", a, 0.25)
+	if a == 0.0:
+		for c in ui.get_children():
+			if c == self or not (c is Control) or not c.visible or c.has_meta("sobre_menu"): continue
+			c.visible = false
+			if not c in _ocultos: _ocultos.append(c)
+		return
+	for c in _ocultos:
+		if not is_instance_valid(c): continue
+		c.visible = true; c.modulate.a = 0.0
+		var tw = c.create_tween(); tw.tween_property(c, "modulate:a", 1.0, 0.25)
+	_ocultos.clear()
 
 func _process(d: float) -> void:
+	if visible and _girando:
+		_hud(0.0); _resumen()
 	# Plano de presentacion: la camara orbita despacio mientras el menu esta abierto.
 	if _girando and ui.principal and ui.principal.camara_rig:
 		ui.principal.camara_rig.yaw += d * 0.05

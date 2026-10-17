@@ -659,6 +659,10 @@ func _dialogo_actualizacion(info: Dictionary) -> void:
 	d.title = "PixelSoft %s disponible" % info.version
 	d.dialog_text = "Tienes la %s. Tu partida y tus mods se conservan.\n\n%s" % [Juego.VERSION, str(info.notas).substr(0, 900)]
 	d.ok_button_text = "Actualizar ahora"; d.cancel_button_text = "Más tarde"
+	if info.get("solo_ia", false):
+		d.title = "Faltan archivos del motor de IA"
+		d.dialog_text = "Faltan %d DLL del motor de IA junto a PixelSoft.exe (%s).\nSe bajan del .zip de la versión %s y el juego se reinicia. Tu partida se conserva." % [Actualizador.faltan_dlls().size(), ", ".join(Actualizador.faltan_dlls()), info.version]
+		d.ok_button_text = "Descargar ahora"
 	d.add_button("Omitir esta versión", true, "omitir")
 	d.confirmed.connect(func(): Actualizador.instalar(info))
 	d.custom_action.connect(func(a): if a == "omitir": Actualizador.omitir(info.version); d.hide())
@@ -672,6 +676,7 @@ func _aviso(t: String) -> void:
 	var h = HBoxContainer.new(); p.add_child(h)
 	h.add_child(Icono.crear("gema", 18 if not movil else 22, Tema.ACENTO))
 	var l = _lbl(t, 0); l.autowrap_mode = TextServer.AUTOWRAP_OFF; h.add_child(l)
+	p.set_meta("sobre_menu", true)   # los avisos se ven tambien con el menu abierto
 	add_child(p)
 	p.set_anchors_preset(PRESET_CENTER_TOP); p.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	var y = (90.0 if not movil else 100.0) + _avisos_n * 56.0; _avisos_n += 1
